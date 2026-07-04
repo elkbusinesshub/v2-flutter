@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter analyze *)",
+      "Bash(flutter test *)",
+      "Bash(flutter devices *)",
+      "Bash(flutter doctor *)",
+      "Bash(flutter build *)",
+      "Bash(timeout 25 ./build/linux/x64/debug/bundle/elk_business_hub)",
+      "Skill(run)",
+      "Skill(run:*)",
+      "Bash(dpkg -l xvfb scrot)",
+      "Bash(sudo apt-get install -y xvfb scrot)",
+      "Bash(adb install *)",
+      "Bash(adb shell *)",
+      "Bash(adb pull *)",
+      "Bash(python3 -m http.server 8765)",
+      "Bash(echo \"Server PID: $!\")",
+      "Bash(google-chrome --headless=new --window-size=390,844 --screenshot=/tmp/web_splash.png http://localhost:8765)",
+      "Bash(which scrot gnome-screenshot import xwd 2>/dev/null *)",
+      "Read(//usr/bin/**)",
+      "Bash(DISPLAY=:0 xdotool search --name \"elk\")",
+      "Bash(DISPLAY=:0 xdotool search --class \"elk\")",
+      "Bash(DISPLAY=:0 xdotool getactivewindow)",
+      "Bash(DISPLAY=:0 xwd -root -silent -out /tmp/root_shot.xwd)",
+      "Bash(pkill -f elk_business_hub)",
+      "Bash(DISPLAY=:0 ./build/linux/x64/debug/bundle/elk_business_hub)",
+      "Bash(DISPLAY=:0 gdm-screenshot --file=/tmp/gdm_shot.png)",
+      "Bash(DISPLAY=:0 screendump /tmp/screen_dump.png)"
+    ]
+  }
+}

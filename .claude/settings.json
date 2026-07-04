@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter test *)",
+      "Bash(timeout 40 google-chrome --headless=new --no-sandbox --hide-scrollbars --force-device-scale-factor=1 --window-size=392,1500 --screenshot=rental_final.png --virtual-time-budget=15000 --run-all-compositor-stages-before-draw \"http://127.0.0.1:8765/#/rental\")",
+      "Bash(pkill -f \"http.server 8765\")",
+      "Bash(pkill -f \"flutter run\")",
+      "Bash(find /home/rafseena -name \"elk-services-browse.html\" 2>/dev/null | head -5)",
+      "Read(//home/rafseena/**)",
+      "Read(//home/rafseena/Downloads/**)",
+      "Bash(find /home/rafseena/Desktop/Projects/ME -name \"*.html\" 2>/dev/null | head -20)",
+      "Read(//home/rafseena/Desktop/Projects/ME/**)",
+      "Bash(find /home/rafseena/Desktop -name \"elk-stay*.html\" -o -name \"elk-vendor*.html\" 2>/dev/null | head -10)",
+      "Read(//home/rafseena/Desktop/**)",
+      "Bash(find /home/rafseena -name \"elk-stay*.html\" -o -name \"elk-vendor*.html\" 2>/dev/null | head -10)",
+      "Bash(grep -n \"dhead\\\\|radial-gradient\\\\|\\\\.hero\\\\|curved\\\\|border-radius\\\\|\\\\.card\\\\|\\\\.cover\\\\|g-teal\\\\|g-yellow\\\\|g-pink\\\\|ill-\\\\|broom\\\\|taxi\\\\|wrench\\\\|gTeal\\\\|gYel\\\\|gPink\\\\|gStraw\\\\|gWood\" \"/home/rafseena/Downloads/elk-stay-flow \\(1\\).html\" | head -80)",
+      "Bash(grep -n \"dhead\\\\|radial-gradient\\\\|\\\\.hero\\\\|curved\\\\|border-radius\\\\|\\\\.card\\\\|\\\\.cover\\\\|g-teal\\\\|g-yellow\\\\|g-pink\\\\|ill-\\\\|broom\\\\|taxi\\\\|wrench\\\\|gTeal\\\\|gYel\\\\|gPink\\\\|gStraw\\\\|gWood\\\\|symbol\\\\|viewBox\" \"/home/rafseena/Downloads/elk-vendor-flow \\(2\\) \\(1\\).html\" | head -100)",
+      "Bash(sed -n '185,230p' \"/home/rafseena/Downloads/elk-vendor-flow \\(2\\) \\(1\\).html\")",
+      "Bash(grep -n \"bld\\\\|building\\\\|symbol\\\\|cat-\\\\|\\\\.cat\\\\b\\\\|pcard\\\\|mininav\\\\|homescreen\\\\|\\\\.hdr\\\\|\\\\.hero\\\\b\\\\|bld\\\\|pg-\\\\|mens-\\\\|womens\\\\|homestay\\\\|pcov\\\\|pcover\" \"/home/rafseena/Downloads/elk-stay-flow \\(1\\).html\" | head -60)",
+      "Bash(sed -n '219,280p' \"/home/rafseena/Downloads/elk-stay-flow \\(1\\).html\")",
+      "Bash(dart analyze *)",
+      "Bash(python3 -c ' *)",
+      "Bash(python3)",
+      "Bash(awk 'NR>=196 && NR<=340' /home/rafseena/Desktop/Projects/ME/V2/lib/features/elkstay/stay_detail/view/stay_detail_screen.dart)",
+      "Bash(dart format *)",
+      "Bash(sed -i '447,613d' lib/features/porter/view/porter_screen.dart)",
+      "Bash(grep -rhoE '₹|Rs\\\\.|INR|AED|SAR|USD|\\\\$[0-9]|QAR|KWD|OMR|Kochi|Kerala|Mumbai|Delhi|Bengaluru|Dubai|Riyadh' /home/rafseena/Desktop/Projects/ME/V2/lib --include='*.dart')"
+    ]
+  }
+}

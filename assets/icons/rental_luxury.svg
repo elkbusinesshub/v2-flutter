@@ -1,0 +1,16 @@
+<svg viewBox="0 0 150 90" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="gGraphite" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4C525A"/><stop offset="1" stop-color="#20252B"/></linearGradient>
+    <linearGradient id="gGlass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5C6B75"/><stop offset="1" stop-color="#2C3A44"/></linearGradient>
+  </defs>
+  <ellipse cx="75" cy="80" rx="62" ry="6" fill="#15241F" opacity=".14"/>
+  <path d="M12 58 Q12 49 28 46 L44 45 Q52 32 74 31 L96 31 Q116 33 124 46 L136 49 Q142 51 140 57 Q140 62 134 62 L18 62 Q12 62 12 58 Z" fill="url(#gGraphite)"/>
+  <path d="M50 45 Q56 34 74 33 L94 33 Q108 35 116 45 Z" fill="url(#gGlass)"/>
+  <rect x="72.5" y="34" width="2.6" height="11" fill="#34383d"/>
+  <path d="M18 54 L132 54" stroke="#fff" stroke-width="2" opacity=".22" stroke-linecap="round"/>
+  <path d="M16 50 Q60 47 132 49" stroke="#F6CE19" stroke-width="1.3" opacity=".55" fill="none"/>
+  <ellipse cx="16" cy="51" rx="3" ry="4.2" fill="#EAF3F0"/>
+  <ellipse cx="136" cy="52" rx="2.6" ry="4" fill="#E0584F"/>
+  <circle cx="44" cy="64" r="13" fill="#16181b"/><circle cx="44" cy="64" r="7" fill="#3a3f45"/><circle cx="44" cy="64" r="2.4" fill="#aeb4ba"/>
+  <circle cx="112" cy="64" r="13" fill="#16181b"/><circle cx="112" cy="64" r="7" fill="#3a3f45"/><circle cx="112" cy="64" r="2.4" fill="#aeb4ba"/>
+</svg>

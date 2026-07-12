@@ -26,7 +26,14 @@
       "Bash(pkill -f elk_business_hub)",
       "Bash(DISPLAY=:0 ./build/linux/x64/debug/bundle/elk_business_hub)",
       "Bash(DISPLAY=:0 gdm-screenshot --file=/tmp/gdm_shot.png)",
-      "Bash(DISPLAY=:0 screendump /tmp/screen_dump.png)"
+      "Bash(DISPLAY=:0 screendump /tmp/screen_dump.png)",
+      "Bash(git -c credential.helper= -c credential.helper='!f\\(\\) { echo \"username=token\"; echo \"password=$\\(tr -d \"[:space:]\" < /home/rafseena/Desktop/Projects/ME/token.txt\\)\"; }; f' push -u origin main)",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer __CMDSUB_OUTPUT__' https://api.github.com/repos/elkbusinesshub/v2-backend)",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer __CMDSUB_OUTPUT__' https://api.github.com/repos/elkbusinesshub/backend-elk)",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' https://api.github.com/repos/elkbusinesshub/v2-backend)",
+      "Bash(echo \"unauthenticated v2-backend: $\\(curl -s -o /dev/null -w '%{http_code}' https://api.github.com/repos/elkbusinesshub/v2-backend\\)\")",
+      "Bash(curl -s -H 'Authorization: Bearer __CMDSUB_OUTPUT__' https://api.github.com/repos/elkbusinesshub/v2-backend)",
+      "Read(//home/rafseena/Desktop/Projects/ME/elk-backend-v2/prisma/**)"
     ]
   }
 }

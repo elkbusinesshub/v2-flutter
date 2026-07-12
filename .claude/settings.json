@@ -24,7 +24,17 @@
       "Bash(awk 'NR>=196 && NR<=340' /home/rafseena/Desktop/Projects/ME/V2/lib/features/elkstay/stay_detail/view/stay_detail_screen.dart)",
       "Bash(dart format *)",
       "Bash(sed -i '447,613d' lib/features/porter/view/porter_screen.dart)",
-      "Bash(grep -rhoE '₹|Rs\\\\.|INR|AED|SAR|USD|\\\\$[0-9]|QAR|KWD|OMR|Kochi|Kerala|Mumbai|Delhi|Bengaluru|Dubai|Riyadh' /home/rafseena/Desktop/Projects/ME/V2/lib --include='*.dart')"
+      "Bash(grep -rhoE '₹|Rs\\\\.|INR|AED|SAR|USD|\\\\$[0-9]|QAR|KWD|OMR|Kochi|Kerala|Mumbai|Delhi|Bengaluru|Dubai|Riyadh' /home/rafseena/Desktop/Projects/ME/V2/lib --include='*.dart')",
+      "Bash(pnpm --version)",
+      "Bash(docker --version)",
+      "Bash(ls -la /home/rafseena/Desktop/Projects/ME/backend-elk/ 2>/dev/null | head -30; echo ===; ls /home/rafseena/Desktop/Projects/ME/elk /home/rafseena/Desktop/Projects/ME/elkv2 2>/dev/null | head)",
+      "Read(//home/rafseena/Desktop/Projects/ME/backend-elk/**)",
+      "Read(//home/rafseena/Desktop/Projects/ME/elk/**)",
+      "Bash(docker compose *)",
+      "Read(//home/rafseena/Desktop/Projects/ME/elk-backend-v2/**)"
+    ],
+    "additionalDirectories": [
+      "/home/rafseena/Desktop/Projects/ME/elk-backend-v2"
     ]
   }
 }

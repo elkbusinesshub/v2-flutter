@@ -1,6 +1,6 @@
 part of 'elkstay_explore_cubit.dart';
 
-enum ElkStayExploreStatus { initial, loading, success, error }
+enum ElkStayExploreStatus { initial, loading, success, error, guest }
 
 class ElkStayExploreState extends Equatable {
   const ElkStayExploreState({
@@ -11,6 +11,8 @@ class ElkStayExploreState extends Equatable {
     this.priceFilter = false,
     this.singleRoomOnly = false,
     this.mealsIncluded = false,
+    this.roomTypeQuery = '',
+    this.searchTerm = '',
     this.errorMessage,
   });
 
@@ -21,9 +23,15 @@ class ElkStayExploreState extends Equatable {
   final bool priceFilter;
   final bool singleRoomOnly;
   final bool mealsIncluded;
+
+  /// Explicit room-type query (e.g. `single`, `double`); empty when unset.
+  final String roomTypeQuery;
+
+  /// Free-text query sent to the backend (name / area / address).
+  final String searchTerm;
   final String? errorMessage;
 
-  String get titleLabel => activeCategory?.displayName ?? 'All Stays';
+  String get titleLabel => activeCategory?.displayName ?? L10n.current.allStays;
   int get countLabel => stays.length;
 
   ElkStayExploreState copyWith({
@@ -35,6 +43,8 @@ class ElkStayExploreState extends Equatable {
     bool? priceFilter,
     bool? singleRoomOnly,
     bool? mealsIncluded,
+    String? roomTypeQuery,
+    String? searchTerm,
     String? errorMessage,
   }) =>
       ElkStayExploreState(
@@ -45,7 +55,9 @@ class ElkStayExploreState extends Equatable {
         priceFilter: priceFilter ?? this.priceFilter,
         singleRoomOnly: singleRoomOnly ?? this.singleRoomOnly,
         mealsIncluded: mealsIncluded ?? this.mealsIncluded,
-        errorMessage: errorMessage ?? this.errorMessage,
+        roomTypeQuery: roomTypeQuery ?? this.roomTypeQuery,
+        searchTerm: searchTerm ?? this.searchTerm,
+        errorMessage: errorMessage,
       );
 
   @override
@@ -57,6 +69,8 @@ class ElkStayExploreState extends Equatable {
         priceFilter,
         singleRoomOnly,
         mealsIncluded,
+        roomTypeQuery,
+        searchTerm,
         errorMessage,
       ];
 }

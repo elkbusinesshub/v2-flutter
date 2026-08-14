@@ -1,6 +1,8 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/errors/api_exception.dart';
+import '../../../core/push/push_service.dart';
 import '../../../core/utils/app_preferences.dart';
 import '../../../data/models/user_model.dart';
 import '../../../data/repositories/auth_repository.dart';
@@ -9,19 +11,23 @@ part 'auth_event.dart';
 part 'auth_state.dart';
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
-  AuthBloc(this._repository, this._preferences) : super(const AuthState()) {
+  AuthBloc(this._repository, this._preferences, {PushService? push})
+      : _push = push,
+        super(const AuthState()) {
     on<PhoneNumberChanged>(_onPhoneNumberChanged);
     on<OtpRequested>(_onOtpRequested);
     on<OtpResendRequested>(_onOtpRequested);
     on<OtpChanged>(_onOtpChanged);
     on<OtpSubmitted>(_onOtpSubmitted);
     on<EditPhoneNumberRequested>(_onEditPhoneNumberRequested);
-    on<GoogleSignInRequested>(_onGoogleSignInRequested);
     on<GuestSignInRequested>(_onGuestSignInRequested);
   }
 
   final AuthRepository _repository;
   final AppPreferences _preferences;
+
+  /// Null in tests and wherever push is not wired; registration is skipped.
+  final PushService? _push;
 
   void _onPhoneNumberChanged(
     PhoneNumberChanged event,
@@ -37,7 +43,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     if (!state.isPhoneValid) return;
     emit(state.copyWith(status: AuthStatus.inProgress, errorMessage: null));
     try {
-      final seconds = await _repository.requestOtp(state.phoneNumber);
+      final seconds = await _repository.requestOtp(state.e164Phone);
       emit(state.copyWith(
         status: AuthStatus.initial,
         step: AuthStep.otpVerification,
@@ -47,7 +53,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     } catch (e) {
       emit(state.copyWith(
         status: AuthStatus.failure,
-        errorMessage: e.toString(),
+        errorMessage: _friendlyMessage(e),
       ));
     }
   }
@@ -64,7 +70,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(state.copyWith(status: AuthStatus.inProgress, errorMessage: null));
     try {
       final user = await _repository.verifyOtp(
-        phoneNumber: state.phoneNumber,
+        phoneNumber: state.e164Phone,
         otp: state.otp,
       );
       await _completeSignIn(user);
@@ -72,7 +78,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     } catch (e) {
       emit(state.copyWith(
         status: AuthStatus.failure,
-        errorMessage: e.toString(),
+        errorMessage: _friendlyMessage(e),
       ));
     }
   }
@@ -89,42 +95,25 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     ));
   }
 
-  Future<void> _onGoogleSignInRequested(
-    GoogleSignInRequested event,
-    Emitter<AuthState> emit,
-  ) async {
-    emit(state.copyWith(status: AuthStatus.inProgress, errorMessage: null));
-    try {
-      final user = await _repository.signInWithGoogle();
-      await _completeSignIn(user);
-      emit(state.copyWith(status: AuthStatus.success, user: user));
-    } catch (e) {
-      emit(state.copyWith(
-        status: AuthStatus.failure,
-        errorMessage: e.toString(),
-      ));
-    }
-  }
-
   Future<void> _onGuestSignInRequested(
     GuestSignInRequested event,
     Emitter<AuthState> emit,
   ) async {
-    emit(state.copyWith(status: AuthStatus.inProgress, errorMessage: null));
-    try {
-      final user = await _repository.continueAsGuest();
-      await _completeSignIn(user);
-      emit(state.copyWith(status: AuthStatus.success, user: user));
-    } catch (e) {
-      emit(state.copyWith(
-        status: AuthStatus.failure,
-        errorMessage: e.toString(),
-      ));
-    }
+    final user = _repository.continueAsGuest();
+    await _preferences.setGuest(true);
+    await _preferences.setUserName(user.name);
+    emit(state.copyWith(status: AuthStatus.success, user: user));
   }
 
   Future<void> _completeSignIn(UserModel user) async {
     await _preferences.setAuthenticated(true);
+    await _preferences.setGuest(false);
     await _preferences.setUserName(user.name);
+    await _preferences.setUserPhone(user.phone);
+    // Claims this device for the user who just signed in. Best-effort inside
+    // PushService, so a refused permission cannot fail the sign-in.
+    await _push?.register();
   }
+
+  String _friendlyMessage(Object error) => friendlyErrorMessage(error);
 }

@@ -1,6 +1,6 @@
 part of 'elkstay_home_cubit.dart';
 
-enum ElkStayHomeStatus { initial, loading, success, error }
+enum ElkStayHomeStatus { initial, loading, success, error, guest }
 
 class ElkStayHomeState extends Equatable {
   const ElkStayHomeState({
@@ -21,7 +21,7 @@ class ElkStayHomeState extends Equatable {
       ElkStayHomeState(
         status: status ?? this.status,
         feed: feed ?? this.feed,
-        errorMessage: errorMessage ?? this.errorMessage,
+        errorMessage: errorMessage,
       );
 
   @override

@@ -1,6 +1,16 @@
+import '../../core/errors/api_exception.dart';
+import '../../data/models/ad_models.dart';
+import '../../data/models/notification_models.dart';
+import '../../data/repositories/notifications_repository.dart';
+import '../../data/repositories/marketplace_repository.dart';
+import 'cubit/seller_listings_cubit.dart';
+import 'cubit/seller_orders_cubit.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/theme/seller_colors.dart';
+import '../../l10n/app_localizations.dart';
 import '../../data/datasources/seller_data.dart';
 import '../account_switcher/account_switcher_sheet.dart';
 
@@ -15,11 +25,11 @@ class SellerShell extends StatefulWidget {
 }
 
 class _SellerShellState extends State<SellerShell> {
+  AppLocalizations get l10n => AppLocalizations.of(context);
+
   _Tab _tab = _Tab.home;
   bool _isOnline = true;
   bool _bankLinked = false;
-  String _orderFilter = 'new';
-  String _listingFilter = 'all';
 
   void _go(_Tab t) => setState(() => _tab = t);
 
@@ -65,7 +75,7 @@ class _SellerShellState extends State<SellerShell> {
 
   Widget _buildAppBar() {
     final isHome = _tab == _Tab.home;
-    final titles = {_Tab.listings: 'My Listings', _Tab.orders: 'Orders', _Tab.wallet: 'Wallet'};
+    final titles = {_Tab.listings: l10n.myListings, _Tab.orders: l10n.orders, _Tab.wallet: l10n.navWallet};
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -85,7 +95,7 @@ class _SellerShellState extends State<SellerShell> {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Partner dashboard', style: TextStyle(fontSize: 13, color: Color(0xFFBFE3DA), fontWeight: FontWeight.w500)),
+          Text(l10n.partnerDashboard, style: TextStyle(fontSize: 13, color: Color(0xFFBFE3DA), fontWeight: FontWeight.w500)),
           const SizedBox(height: 1),
           Row(children: [
             const Text('Bright Spark Services', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.3)),
@@ -93,10 +103,10 @@ class _SellerShellState extends State<SellerShell> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
               decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(20)),
-              child: const Row(mainAxisSize: MainAxisSize.min, children: [
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
                 Icon(Icons.verified, size: 12, color: Color(0xFFD6FFE9)),
                 SizedBox(width: 4),
-                Text('Verified', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFFD6FFE9), letterSpacing: 0.2)),
+                Text(l10n.verified, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFFD6FFE9), letterSpacing: 0.2)),
               ]),
             ),
           ]),
@@ -126,8 +136,8 @@ class _SellerShellState extends State<SellerShell> {
           setState(() => _isOnline = !_isOnline);
           _toast(
             _isOnline ? '🟢' : '⚪',
-            _isOnline ? 'You are online' : 'You are offline',
-            _isOnline ? 'Customers can book you now' : 'You won\'t get new requests',
+            _isOnline ? l10n.youAreOnline : l10n.youAreOffline,
+            _isOnline ? l10n.customersCanBook : l10n.noNewRequests,
           );
         },
         child: Container(
@@ -145,7 +155,7 @@ class _SellerShellState extends State<SellerShell> {
             ),
             const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(_isOnline ? 'You\'re online' : 'You\'re offline', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
+              Text(_isOnline ? l10n.youAreOnline : l10n.youAreOffline, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
               Text(_isOnline ? 'Accepting new bookings' : 'Not receiving requests', style: const TextStyle(fontSize: 11.5, color: Color(0xFFBFE3DA))),
             ])),
             _OnlineSwitch(value: _isOnline),
@@ -192,8 +202,8 @@ class _SellerShellState extends State<SellerShell> {
         child: SizedBox(
           height: 68,
           child: Row(children: [
-            _navItem(_Tab.home, Icons.home_outlined, Icons.home_rounded, 'Home'),
-            _navItem(_Tab.listings, Icons.grid_view_outlined, Icons.grid_view_rounded, 'Listings'),
+            _navItem(_Tab.home, Icons.home_outlined, Icons.home_rounded, l10n.navHome),
+            _navItem(_Tab.listings, Icons.grid_view_outlined, Icons.grid_view_rounded, l10n.listings),
             // Centre elevated Post button
             SizedBox(
               width: 72,
@@ -215,12 +225,12 @@ class _SellerShellState extends State<SellerShell> {
                 ),
                 Transform.translate(
                   offset: const Offset(0, -16),
-                  child: const Text('Post', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: SellerColors.teal500)),
+                  child: Text(l10n.post, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: SellerColors.teal500)),
                 ),
               ]),
             ),
-            _navItem(_Tab.orders, Icons.shopping_bag_outlined, Icons.shopping_bag_rounded, 'Orders'),
-            _navItem(_Tab.wallet, Icons.account_balance_wallet_outlined, Icons.account_balance_wallet, 'Wallet'),
+            _navItem(_Tab.orders, Icons.shopping_bag_outlined, Icons.shopping_bag_rounded, l10n.orders),
+            _navItem(_Tab.wallet, Icons.account_balance_wallet_outlined, Icons.account_balance_wallet, l10n.navWallet),
           ]),
         ),
       ),
@@ -271,7 +281,8 @@ class _SellerShellState extends State<SellerShell> {
   // ─── Dashboard ───────────────────────────────────────────────────────────
 
   Widget _homeScreen() {
-    final newOrders = sellerOrders.where((o) => o.status == 'new' || o.status == 'progress').take(3).toList();
+    final orderState = context.watch<SellerOrdersCubit>().state;
+    final newOrders = orderState.attentionOrders;
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
       children: [
@@ -290,15 +301,15 @@ class _SellerShellState extends State<SellerShell> {
                 Container(
                   width: 44, height: 44,
                   decoration: BoxDecoration(color: SellerColors.gold, borderRadius: BorderRadius.circular(13)),
-                  child: const Center(child: Text('🏦', style: TextStyle(fontSize: 22))),
+                  child: Center(child: Text('🏦', style: TextStyle(fontSize: 22))),
                 ),
-                const SizedBox(width: 13),
+                SizedBox(width: 13),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text('Link your bank to get paid', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: Color(0xFF7A5E00))),
-                  const Text('Add your IBAN so we can transfer your earnings', style: TextStyle(fontSize: 12.5, color: Color(0xFF9A7D28))),
-                  const SizedBox(height: 6),
-                  Row(children: const [
-                    Text('Add bank account', style: TextStyle(color: Color(0xFFCAA20D), fontWeight: FontWeight.w800, fontSize: 13)),
+                  Text(l10n.linkBankToGetPaid, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: Color(0xFF7A5E00))),
+                  Text(l10n.addAccountToTransfer, style: TextStyle(fontSize: 12.5, color: Color(0xFF9A7D28))),
+                  SizedBox(height: 6),
+                  Row(children: [
+                    Text(l10n.addBankAccount, style: TextStyle(color: Color(0xFFCAA20D), fontWeight: FontWeight.w800, fontSize: 13)),
                     SizedBox(width: 3),
                     Icon(Icons.arrow_forward, size: 13, color: Color(0xFFCAA20D)),
                   ]),
@@ -308,7 +319,7 @@ class _SellerShellState extends State<SellerShell> {
           ),
           const SizedBox(height: 22),
         ],
-        _SectionTitle(text: 'Quick actions'),
+        _SectionTitle(text: l10n.quickActions),
         const SizedBox(height: 12),
         Row(children: [
           Expanded(
@@ -324,8 +335,8 @@ class _SellerShellState extends State<SellerShell> {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Container(width: 42, height: 42, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(12)), child: const Center(child: Text('➕', style: TextStyle(fontSize: 21)))),
                   const SizedBox(height: 9),
-                  const Text('Post a new ad', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
-                  const Text('List a service or item', style: TextStyle(fontSize: 11.5, color: Color(0xFFBFE7DD))),
+                  Text(l10n.postNewAd, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
+                  Text(l10n.listServiceOrItem, style: TextStyle(fontSize: 11.5, color: Color(0xFFBFE7DD))),
                 ]),
               ),
             ),
@@ -340,25 +351,28 @@ class _SellerShellState extends State<SellerShell> {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Container(width: 42, height: 42, decoration: BoxDecoration(color: SellerColors.tYellow, borderRadius: BorderRadius.circular(12)), child: const Center(child: Text('📦', style: TextStyle(fontSize: 21)))),
                   const SizedBox(height: 9),
-                  const Text('View orders', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: SellerColors.ink)),
-                  const Text('6 need attention', style: TextStyle(fontSize: 11.5, color: SellerColors.muted)),
+                  Text(l10n.viewOrders, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: SellerColors.ink)),
+                  // Was a hardcoded "6 need attention" sitting above an empty
+                  // Orders tab.
+                  Text(l10n.needAttention(orderState.needsAttention),
+                      style: const TextStyle(fontSize: 11.5, color: SellerColors.muted)),
                 ]),
               ),
             ),
           ),
         ]),
         const SizedBox(height: 22),
-        _SectionTitle(text: 'Today at a glance'),
+        _SectionTitle(text: l10n.todayAtAGlance),
         // const SizedBox(height: 12),
         // 2×2 stats
         GridView.count(
           crossAxisCount: 2, mainAxisSpacing: 20, crossAxisSpacing: 20,
           childAspectRatio: 1.55, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-          children: const [
-            _StatCard(icon: '💰', bg: SellerColors.tMint, label: 'Today\'s earnings', value: 'AED 840', delta: '▲ 18% vs yesterday', positive: true),
-            _StatCard(icon: '🔥', bg: SellerColors.tYellow, label: 'New requests', value: '6', delta: '3 awaiting reply', positive: true),
-            _StatCard(icon: '📋', bg: SellerColors.tPurple, label: 'Active jobs', value: '4', delta: '2 in progress', positive: null),
-            _StatCard(icon: '⭐', bg: SellerColors.tPink, label: 'Rating', value: '4.9', delta: 'From 312 reviews', positive: true),
+          children: [
+            _StatCard(icon: '💰', bg: SellerColors.tMint, label: l10n.todaysEarnings, value: '₹0', delta: l10n.noEarningsYet, positive: null),
+            _StatCard(icon: '🔥', bg: SellerColors.tYellow, label: l10n.newRequests, value: '0', delta: l10n.nothingWaiting, positive: null),
+            _StatCard(icon: '📋', bg: SellerColors.tPurple, label: l10n.activeJobs, value: '0', delta: l10n.noActiveJobs, positive: null),
+            _StatCard(icon: '⭐', bg: SellerColors.tPink, label: l10n.profileRating, value: '—', delta: l10n.noReviewsYet, positive: true),
           ],
         ),
         // Earnings chart
@@ -369,8 +383,8 @@ class _SellerShellState extends State<SellerShell> {
         //   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         //     Row(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
         //       const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        //         Text('AED 5,420', style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800, letterSpacing: -0.6, color: SellerColors.ink)),
-        //         Text('Earnings this week', style: TextStyle(fontSize: 12, color: SellerColors.muted, fontWeight: FontWeight.w600)),
+        //         Text('₹5,420', style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800, letterSpacing: -0.6, color: SellerColors.ink)),
+        //         Text(l10n.earningsThisWeek, style: TextStyle(fontSize: 12, color: SellerColors.muted, fontWeight: FontWeight.w600)),
         //       ]),
         //       Container(
         //         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -414,15 +428,31 @@ class _SellerShellState extends State<SellerShell> {
         const SizedBox(height: 22),
         
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          _SectionTitle(text: 'Recent bookings'),
-          GestureDetector(onTap: () => _go(_Tab.orders), child: const Text('See all', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: SellerColors.teal500))),
+          _SectionTitle(text: l10n.recentBookings),
+          GestureDetector(onTap: () => _go(_Tab.orders), child: Text(l10n.commonSeeAll, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: SellerColors.teal500))),
         ]),
         const SizedBox(height: 12),
         Container(
           decoration: BoxDecoration(color: SellerColors.card, borderRadius: BorderRadius.circular(16), boxShadow: const [BoxShadow(color: Color(0x0F101828), blurRadius: 22, offset: Offset(0, 6))]),
-          child: Column(
-            children: newOrders.asMap().entries.map((e) => _OrderRow(order: e.value, isLast: e.key == newOrders.length - 1, onTap: () => _showOrderSheet(e.value))).toList(),
-          ),
+          child: newOrders.isEmpty
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 26),
+                  child: Center(
+                    child: Text(l10n.noOrdersRightNow,
+                        style: const TextStyle(fontSize: 13, color: SellerColors.muted)),
+                  ),
+                )
+              : Column(
+                  children: newOrders
+                      .asMap()
+                      .entries
+                      .map((e) => _OrderRow(
+                            order: e.value,
+                            isLast: e.key == newOrders.length - 1,
+                            onTap: () => _showOrderSheet(e.value),
+                          ))
+                      .toList(),
+                ),
         ),
       ],
     );
@@ -431,93 +461,199 @@ class _SellerShellState extends State<SellerShell> {
   // ─── Listings ────────────────────────────────────────────────────────────
 
   Widget _listingsScreen() {
-    final filters = [('all', 'All', 5), ('active', 'Active', 3), ('pending', 'In review', 1), ('paused', 'Paused', 1)];
-    final filtered = sellerListings.where((l) => _listingFilter == 'all' || l.status == _listingFilter).toList();
-    return Column(children: [
-      // chips
-      SizedBox(
-        height: 48,
-        child: ListView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
-          children: filters.map((f) {
-            final on = _listingFilter == f.$1;
-            return GestureDetector(
-              onTap: () => setState(() => _listingFilter = f.$1),
-              child: Container(
-                margin: const EdgeInsets.only(right: 9),
-                padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-                decoration: BoxDecoration(
-                  color: on ? SellerColors.teal600 : SellerColors.card,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: const [BoxShadow(color: Color(0x0F101828), blurRadius: 6, offset: Offset(0, 2))],
+    return BlocConsumer<SellerListingsCubit, SellerListingsState>(
+      listenWhen: (before, after) => after.errorMessage != null,
+      listener: (context, state) => ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(state.errorMessage!))),
+      builder: (context, state) {
+        // Counts come from the same list the rows do. The fixture panel showed
+        // "All 5 / Active 3" above a permanently empty list.
+        final tabs = <(AdStatus?, String)>[
+          (null, l10n.chipAll),
+          (AdStatus.active, l10n.tabActive),
+          (AdStatus.draft, l10n.inReview),
+          (AdStatus.paused, l10n.paused),
+        ];
+
+        return Column(children: [
+          SizedBox(
+            height: 48,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+              children: tabs.map((t) {
+                final on = state.tab == t.$1;
+                return GestureDetector(
+                  onTap: () => context.read<SellerListingsCubit>().selectTab(t.$1),
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 9),
+                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: on ? SellerColors.teal600 : SellerColors.card,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: const [BoxShadow(color: Color(0x0F101828), blurRadius: 6, offset: Offset(0, 2))],
+                    ),
+                    child: Text('${t.$2} ${state.countOf(t.$1)}',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: on ? Colors.white : SellerColors.ink2)),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          Expanded(child: switch (state.status) {
+            SellerListingsStatus.initial ||
+            SellerListingsStatus.loading =>
+              const Center(child: CircularProgressIndicator(color: SellerColors.teal600)),
+            SellerListingsStatus.error => Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Text(state.errorMessage ?? '',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: SellerColors.muted, fontSize: 14)),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: () => context.read<SellerListingsCubit>().load(),
+                      child: Text(l10n.commonRetry),
+                    ),
+                  ]),
                 ),
-                child: Text('${f.$2} ${f.$3}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: on ? Colors.white : SellerColors.ink2)),
               ),
-            );
-          }).toList(),
-        ),
+            SellerListingsStatus.success => state.visibleAds.isEmpty
+                ? Center(child: Text(l10n.nothingHereYet, style: const TextStyle(color: SellerColors.muted, fontSize: 15)))
+                : RefreshIndicator(
+                    onRefresh: () => context.read<SellerListingsCubit>().load(),
+                    child: ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                      itemCount: state.visibleAds.length,
+                      itemBuilder: (context, i) {
+                        final ad = state.visibleAds[i];
+                        return _AdCard(
+                          ad: ad,
+                          onTogglePause: () => context
+                              .read<SellerListingsCubit>()
+                              .setPaused(ad.id, ad.status != AdStatus.paused),
+                          onDelete: () => _confirmDelete(ad),
+                        );
+                      },
+                    ),
+                  ),
+          }),
+        ]);
+      },
+    );
+  }
+
+  Future<void> _confirmDelete(AdModel ad) async {
+    final cubit = context.read<SellerListingsCubit>();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.deleteListing),
+        content: Text(ad.title),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l10n.commonCancel)),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.commonDelete, style: const TextStyle(color: Color(0xFFD64545))),
+          ),
+        ],
       ),
-      Expanded(
-        child: filtered.isEmpty
-            ? const Center(child: Text('Nothing here yet', style: TextStyle(color: SellerColors.muted, fontSize: 15)))
-            : ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                itemCount: filtered.length,
-                itemBuilder: (context, i) => _ListingCard(listing: filtered[i]),
-              ),
-      ),
-    ]);
+    );
+    if (confirmed ?? false) await cubit.delete(ad.id);
   }
 
   // ─── Orders ──────────────────────────────────────────────────────────────
 
   Widget _ordersScreen() {
-    final filters = [('new', 'New', 3), ('progress', 'In progress', 2), ('completed', 'Completed', 4), ('cancelled', 'Cancelled', 0)];
-    final filtered = sellerOrders.where((o) => o.status == _orderFilter).toList();
-    return Column(children: [
-      SizedBox(
-        height: 48,
-        child: ListView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
-          children: filters.map((f) {
-            final on = _orderFilter == f.$1;
-            return GestureDetector(
-              onTap: () => setState(() => _orderFilter = f.$1),
-              child: Container(
-                margin: const EdgeInsets.only(right: 9),
-                padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-                decoration: BoxDecoration(
-                  color: on ? SellerColors.teal600 : SellerColors.card,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: const [BoxShadow(color: Color(0x0F101828), blurRadius: 6, offset: Offset(0, 2))],
+    return BlocConsumer<SellerOrdersCubit, SellerOrdersState>(
+      listenWhen: (before, after) => after.errorMessage != null,
+      listener: (context, state) => ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(state.errorMessage!))),
+      builder: (context, state) {
+        final tabs = <(AdOrderStatus, String)>[
+          (AdOrderStatus.newOrder, l10n.homeBadgeNew),
+          (AdOrderStatus.inProgress, l10n.inProgress),
+          (AdOrderStatus.completed, l10n.statusCompleted),
+          (AdOrderStatus.cancelled, l10n.statusCancelled),
+        ];
+
+        return Column(children: [
+          SizedBox(
+            height: 48,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+              children: tabs.map((t) {
+                final on = state.tab == t.$1;
+                final count = state.countOf(t.$1);
+                return GestureDetector(
+                  onTap: () => context.read<SellerOrdersCubit>().selectTab(t.$1),
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 9),
+                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: on ? SellerColors.teal600 : SellerColors.card,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: const [BoxShadow(color: Color(0x0F101828), blurRadius: 6, offset: Offset(0, 2))],
+                    ),
+                    // Counted from the loaded orders, so a tab never promises
+                    // rows the list below cannot show.
+                    child: Text(count > 0 ? '${t.$2} $count' : t.$2,
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: on ? Colors.white : SellerColors.ink2)),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          Expanded(child: switch (state.status) {
+            SellerOrdersStatus.initial ||
+            SellerOrdersStatus.loading =>
+              const Center(child: CircularProgressIndicator(color: SellerColors.teal600)),
+            SellerOrdersStatus.error => Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Text(state.errorMessage ?? '',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: SellerColors.muted, fontSize: 14)),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: () => context.read<SellerOrdersCubit>().load(),
+                      child: Text(l10n.commonRetry),
+                    ),
+                  ]),
                 ),
-                child: Text(f.$3 > 0 ? '${f.$2} ${f.$3}' : f.$2, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: on ? Colors.white : SellerColors.ink2)),
               ),
-            );
-          }).toList(),
-        ),
-      ),
-      Expanded(
-        child: filtered.isEmpty
-            ? const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Text('📭', style: TextStyle(fontSize: 46)),
-                SizedBox(height: 12),
-                Text('All clear', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: SellerColors.ink2)),
-                Text('No orders here right now', style: TextStyle(fontSize: 13, color: SellerColors.muted)),
-              ]))
-            : ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                itemCount: filtered.length,
-                itemBuilder: (context, i) => Container(
-                  decoration: BoxDecoration(color: SellerColors.card, borderRadius: BorderRadius.circular(16), boxShadow: const [BoxShadow(color: Color(0x0F101828), blurRadius: 22, offset: Offset(0, 6))]),
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: _OrderRow(order: filtered[i], isLast: true, onTap: () => _showOrderSheet(filtered[i])),
-                ),
-              ),
-      ),
-    ]);
+            SellerOrdersStatus.success => state.visibleOrders.isEmpty
+                ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Text('📭', style: TextStyle(fontSize: 46)),
+                    const SizedBox(height: 12),
+                    Text(l10n.allClear, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: SellerColors.ink2)),
+                    Text(l10n.noOrdersRightNow, style: const TextStyle(fontSize: 13, color: SellerColors.muted)),
+                  ]))
+                : RefreshIndicator(
+                    onRefresh: () => context.read<SellerOrdersCubit>().load(),
+                    child: ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                      itemCount: state.visibleOrders.length,
+                      itemBuilder: (context, i) => Container(
+                        decoration: BoxDecoration(color: SellerColors.card, borderRadius: BorderRadius.circular(16), boxShadow: const [BoxShadow(color: Color(0x0F101828), blurRadius: 22, offset: Offset(0, 6))]),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        child: _OrderRow(
+                          order: state.visibleOrders[i],
+                          isLast: true,
+                          onTap: () => _showOrderSheet(state.visibleOrders[i]),
+                        ),
+                      ),
+                    ),
+                  ),
+          }),
+        ]);
+      },
+    );
   }
 
   // ─── Wallet ──────────────────────────────────────────────────────────────
@@ -535,35 +671,35 @@ class _SellerShellState extends State<SellerShell> {
             boxShadow: const [BoxShadow(color: Color(0x4D155049), blurRadius: 34, offset: Offset(0, 12))],
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Row(children: [
+            Row(children: [
               Text('💰', style: TextStyle(fontSize: 16)),
               SizedBox(width: 6),
-              Text('Available balance', style: TextStyle(fontSize: 13, color: Color(0xFFBFE7DD), fontWeight: FontWeight.w600)),
+              Text(l10n.walletAvailableBalance, style: TextStyle(fontSize: 13, color: Color(0xFFBFE7DD), fontWeight: FontWeight.w600)),
             ]),
             const SizedBox(height: 5),
-            const Text('AED 3,280', style: TextStyle(fontSize: 36, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -1)),
-            const Text('AED 640 pending · clears in 2 days', style: TextStyle(fontSize: 12.5, color: Color(0xFFBFE7DD))),
+            const Text('₹0', style: TextStyle(fontSize: 36, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -1)),
+            const Text('₹640 pending · clears in 2 days', style: TextStyle(fontSize: 12.5, color: Color(0xFFBFE7DD))),
             const SizedBox(height: 18),
             Row(children: [
               Expanded(
                 child: GestureDetector(
                   onTap: () => _showWithdrawSheet(),
                   child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
-                    child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text('↑ ', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: SellerColors.teal700)), Text('Withdraw', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: SellerColors.teal700))]),
+                    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [const Text('↑ ', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: SellerColors.teal700)), Text(l10n.walletWithdraw, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: SellerColors.teal700))]),
                   ),
                 ),
               ),
               const SizedBox(width: 11),
               Expanded(
                 child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(14)),
-                  child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text('📄 ', style: TextStyle(fontSize: 13.5)), Text('Statement', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Colors.white))]),
+                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [const Text('📄 ', style: TextStyle(fontSize: 13.5)), Text(l10n.statement, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Colors.white))]),
                 ),
               ),
             ]),
           ]),
         ),
         const SizedBox(height: 22),
-        _SectionTitle(text: 'Payout method'),
+        _SectionTitle(text: l10n.payoutMethod),
         const SizedBox(height: 12),
         GestureDetector(
           onTap: () => _showBankSheet(),
@@ -574,8 +710,8 @@ class _SellerShellState extends State<SellerShell> {
               Container(width: 48, height: 48, decoration: BoxDecoration(color: _bankLinked ? SellerColors.blue50 : SellerColors.amber50, borderRadius: BorderRadius.circular(13)), child: Center(child: Text(_bankLinked ? '🏦' : '⚠️', style: const TextStyle(fontSize: 23)))),
               const SizedBox(width: 13),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(_bankLinked ? 'Emirates NBD' : 'No bank linked', style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: SellerColors.ink)),
-                Text(_bankLinked ? 'IBAN ••••4821 · Verified' : 'Add your IBAN to withdraw earnings', style: const TextStyle(fontSize: 12.5, color: SellerColors.muted)),
+                Text(_bankLinked ? 'HDFC Bank' : l10n.noBankLinked, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: SellerColors.ink)),
+                Text(_bankLinked ? l10n.accountVerified : l10n.addAccountToWithdraw, style: const TextStyle(fontSize: 12.5, color: SellerColors.muted)),
               ])),
               Text(_bankLinked ? '✓' : '+ Add', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _bankLinked ? SellerColors.green : SellerColors.teal500)),
             ]),
@@ -583,8 +719,8 @@ class _SellerShellState extends State<SellerShell> {
         ),
         const SizedBox(height: 22),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          _SectionTitle(text: 'Recent transactions'),
-          const Text('Export', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: SellerColors.teal500)),
+          _SectionTitle(text: l10n.recentTransactions),
+          Text(l10n.export, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: SellerColors.teal500)),
         ]),
         const SizedBox(height: 12),
         Container(
@@ -599,7 +735,135 @@ class _SellerShellState extends State<SellerShell> {
 
   void _showPostSheet() {
     int selectedCat = -1;
-    final cats = [('Taxi / Ride', '🚕', SellerColors.tBlue), ('Cleaning', '🧹', SellerColors.tYellow), ('Car Rental', '🚗', SellerColors.tPurple), ('Repair', '🔧', SellerColors.tPink), ('Porter', '📦', SellerColors.tGreen), ('ELK Stay', '🏨', SellerColors.tMint)];
+    final titleCtrl = TextEditingController();
+    final priceCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+    final cubit = context.read<SellerListingsCubit>();
+    // (label, emoji, tile colour, backend category slug)
+    final cats = <(String, String, Color, String)>[
+      (l10n.svcTaxiRides, '🚕', SellerColors.tBlue, 'taxi'),
+      (l10n.svcCleaning, '🧹', SellerColors.tYellow, 'cleaning'),
+      (l10n.svcCarRental, '🚗', SellerColors.tPurple, 'car_rental'),
+      (l10n.svcRepair, '🔧', SellerColors.tPink, 'repairing'),
+      (l10n.catPorter, '📦', SellerColors.tGreen, 'porter'),
+      ('ELK Stay', '🏨', SellerColors.tMint, 'elkstay'),
+    ];
+    final pricingUnits = <String, String>{
+      l10n.fixedPrice: '',
+      l10n.perHour: '/ hour',
+      l10n.perDay: '/ day',
+      l10n.startingFrom: 'starting',
+    };
+    var pricingType = l10n.fixedPrice;
+    final imageKeys = <String>[];
+    var uploading = false;
+
+    // Per-category detail. These keys must match the backend's schema in
+    // ad-attributes.ts, which rejects anything it does not define rather than
+    // silently dropping it.
+    final durationCtrl = TextEditingController();
+    final includesCtrl = TextEditingController();
+    final warrantyCtrl = TextEditingController();
+    final seatsCtrl = TextEditingController();
+    final roomTypeCtrl = TextEditingController();
+    final depositCtrl = TextEditingController();
+    // "Not specified" maps to null so the key is left out entirely — better
+    // than guessing a default the seller never chose.
+    const transmissions = <String, String?>{
+      'Not specified': null,
+      'Automatic': 'AUTOMATIC',
+      'Manual': 'MANUAL',
+    };
+    const fuels = <String, String?>{
+      'Not specified': null,
+      'Petrol': 'PETROL',
+      'Diesel': 'DIESEL',
+      'Electric': 'ELECTRIC',
+      'Hybrid': 'HYBRID',
+    };
+    const stayTypes = <String, String?>{
+      'Not specified': null,
+      'PG': 'PG',
+      "Men's hostel": 'MENS_HOSTEL',
+      "Women's hostel": 'WOMENS_HOSTEL',
+      'Homestay': 'HOMESTAY',
+    };
+    var transmission = 'Not specified';
+    var fuel = 'Not specified';
+    var stayType = 'Not specified';
+    var furnished = false;
+
+    /// What the seller filled in for the chosen category, omitting blanks.
+    Map<String, dynamic> attributesFor(String slug) {
+      String t(TextEditingController c) => c.text.trim();
+      final includes = includesCtrl.text
+          .split(',')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
+      return switch (slug) {
+        'cleaning' => {
+            if (t(durationCtrl).isNotEmpty) 'durationLabel': t(durationCtrl),
+            if (includes.isNotEmpty) 'includes': includes,
+          },
+        'repairing' => {
+            if (t(durationCtrl).isNotEmpty) 'durationLabel': t(durationCtrl),
+            if (t(warrantyCtrl).isNotEmpty) 'warrantyLabel': t(warrantyCtrl),
+          },
+        'car_rental' => {
+            if (int.tryParse(t(seatsCtrl)) != null) 'seats': int.parse(t(seatsCtrl)),
+            if (transmissions[transmission] != null) 'transmission': transmissions[transmission],
+            if (fuels[fuel] != null) 'fuel': fuels[fuel],
+          },
+        'elkstay' => {
+            if (t(roomTypeCtrl).isNotEmpty) 'roomType': t(roomTypeCtrl),
+            if (stayTypes[stayType] != null) 'stayType': stayTypes[stayType],
+            if (int.tryParse(t(depositCtrl)) != null) 'depositAmount': int.parse(t(depositCtrl)),
+            'furnished': furnished,
+          },
+        // Taxi and porter are still served by their own modules and take none.
+        _ => const {},
+      };
+    }
+
+    /// Validates, submits, and only then closes the sheet — a failure keeps
+    /// everything the seller typed on screen.
+    Future<void> submit(BuildContext ctx, AdStatus status) async {
+      final title = titleCtrl.text.trim();
+      final price = double.tryParse(priceCtrl.text.trim());
+      if (selectedCat < 0 || title.isEmpty || price == null) {
+        ScaffoldMessenger.of(ctx)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(l10n.fillRequiredFields)));
+        return;
+      }
+
+      final slug = cats[selectedCat].$4;
+      final ok = await cubit.create(
+        title: title,
+        categorySlug: slug,
+        price: price,
+        description: descCtrl.text.trim(),
+        priceUnit: pricingUnits[pricingType],
+        // The category's own emoji, so a listing without a photo shows
+        // something recognisable rather than the column default.
+        icon: cats[selectedCat].$2,
+        status: status,
+        imageKeys: imageKeys,
+        attributes: attributesFor(slug),
+      );
+      if (!ctx.mounted) return;
+      if (ok) {
+        Navigator.pop(ctx);
+        _toast(
+          status == AdStatus.draft ? '📝' : '⏳',
+          status == AdStatus.draft ? l10n.draftSaved : l10n.adSubmitted,
+          status == AdStatus.draft ? '' : l10n.goesLiveIn24h,
+          gold: true,
+        );
+      }
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -610,9 +874,9 @@ class _SellerShellState extends State<SellerShell> {
         decoration: const BoxDecoration(color: SellerColors.bg, borderRadius: BorderRadius.vertical(top: Radius.circular(26))),
         child: Column(children: [
           const _SheetGrip(),
-          _SheetHead(title: 'Post a new ad', onClose: () => Navigator.pop(ctx)),
+          _SheetHead(title: l10n.postNewAd, onClose: () => Navigator.pop(ctx)),
           Expanded(child: ListView(padding: const EdgeInsets.fromLTRB(18, 0, 18, 0), children: [
-            _FieldLabel(text: 'Choose a category', required: true),
+            _FieldLabel(text: l10n.chooseCategory, required: true),
             const SizedBox(height: 8),
             GridView.count(
               crossAxisCount: 3, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
@@ -634,44 +898,163 @@ class _SellerShellState extends State<SellerShell> {
               }),
             ),
             const SizedBox(height: 4),
-            const Text('Pick the service or item type you\'re listing', style: TextStyle(fontSize: 11.5, color: SellerColors.muted)),
+            Text(l10n.pickServiceType, style: const TextStyle(fontSize: 11.5, color: SellerColors.muted)),
             const SizedBox(height: 16),
-            _FieldLabel(text: 'Listing title', required: true),
+            _FieldLabel(text: l10n.listingTitle, required: true),
             const SizedBox(height: 8),
-            _Input(hint: 'e.g. Deep home cleaning (3BHK)'),
+            _Input(hint: l10n.listingTitleHint, controller: titleCtrl),
             const SizedBox(height: 16),
-            _FieldLabel(text: 'Price', required: true),
+            _FieldLabel(text: l10n.price, required: true),
             const SizedBox(height: 8),
-            _Input(hint: '0.00', prefix: 'AED', keyboardType: TextInputType.number),
+            _Input(hint: '0.00', prefix: '₹', keyboardType: TextInputType.number, controller: priceCtrl),
             const SizedBox(height: 16),
-            _FieldLabel(text: 'Pricing type'),
+            _FieldLabel(text: l10n.pricingType),
             const SizedBox(height: 8),
-            _SelectBox(items: const ['Fixed price', 'Per hour', 'Per day', 'Starting from']),
+            _SelectBox(
+              items: pricingUnits.keys.toList(),
+              value: pricingType,
+              onChanged: (v) => setSt(() => pricingType = v),
+            ),
             const SizedBox(height: 16),
-            _FieldLabel(text: 'Description', required: true),
+            _FieldLabel(text: l10n.description, required: true),
             const SizedBox(height: 8),
-            _Input(hint: 'Describe what\'s included, your experience, service area…', maxLines: 4),
+            _Input(hint: l10n.descriptionHint, maxLines: 4, controller: descCtrl),
+            // Only the chosen category's extras appear — a cleaning ad has no
+            // gearbox, and asking for one would be noise.
+            ...switch (selectedCat < 0 ? '' : cats[selectedCat].$4) {
+              'cleaning' => [
+                  const SizedBox(height: 16),
+                  const _FieldLabel(text: 'How long it takes'),
+                  const SizedBox(height: 8),
+                  _Input(hint: 'e.g. 2–3 hrs', controller: durationCtrl),
+                  const SizedBox(height: 16),
+                  const _FieldLabel(text: "What's included"),
+                  const SizedBox(height: 8),
+                  _Input(hint: 'Sofa, Carpet, Curtains', controller: includesCtrl),
+                  const SizedBox(height: 4),
+                  const Text('Separate each one with a comma',
+                      style: TextStyle(fontSize: 11.5, color: SellerColors.muted)),
+                ],
+              'repairing' => [
+                  const SizedBox(height: 16),
+                  const _FieldLabel(text: 'How long it takes'),
+                  const SizedBox(height: 8),
+                  _Input(hint: 'e.g. 45–60 mins', controller: durationCtrl),
+                  const SizedBox(height: 16),
+                  const _FieldLabel(text: 'Warranty'),
+                  const SizedBox(height: 8),
+                  _Input(hint: 'e.g. 30 days on parts', controller: warrantyCtrl),
+                ],
+              'car_rental' => [
+                  const SizedBox(height: 16),
+                  const _FieldLabel(text: 'Seats'),
+                  const SizedBox(height: 8),
+                  _Input(hint: '5', keyboardType: TextInputType.number, controller: seatsCtrl),
+                  const SizedBox(height: 16),
+                  const _FieldLabel(text: 'Transmission'),
+                  const SizedBox(height: 8),
+                  _SelectBox(
+                    items: transmissions.keys.toList(),
+                    value: transmission,
+                    onChanged: (v) => setSt(() => transmission = v),
+                  ),
+                  const SizedBox(height: 16),
+                  const _FieldLabel(text: 'Fuel'),
+                  const SizedBox(height: 8),
+                  _SelectBox(
+                    items: fuels.keys.toList(),
+                    value: fuel,
+                    onChanged: (v) => setSt(() => fuel = v),
+                  ),
+                ],
+              'elkstay' => [
+                  const SizedBox(height: 16),
+                  const _FieldLabel(text: 'Room type'),
+                  const SizedBox(height: 8),
+                  _Input(hint: 'e.g. Single room', controller: roomTypeCtrl),
+                  const SizedBox(height: 16),
+                  const _FieldLabel(text: 'Property type'),
+                  const SizedBox(height: 8),
+                  _SelectBox(
+                    items: stayTypes.keys.toList(),
+                    value: stayType,
+                    onChanged: (v) => setSt(() => stayType = v),
+                  ),
+                  const SizedBox(height: 16),
+                  const _FieldLabel(text: 'Deposit'),
+                  const SizedBox(height: 8),
+                  _Input(
+                    hint: '0',
+                    prefix: '₹',
+                    keyboardType: TextInputType.number,
+                    controller: depositCtrl,
+                  ),
+                  const SizedBox(height: 4),
+                  const Text('One-off, on top of the monthly rent above',
+                      style: TextStyle(fontSize: 11.5, color: SellerColors.muted)),
+                  const SizedBox(height: 16),
+                  Row(children: [
+                    const Expanded(child: _FieldLabel(text: 'Furnished')),
+                    Switch(
+                      value: furnished,
+                      activeThumbColor: SellerColors.teal500,
+                      onChanged: (v) => setSt(() => furnished = v),
+                    ),
+                  ]),
+                ],
+              _ => const <Widget>[],
+            },
             const SizedBox(height: 16),
-            _FieldLabel(text: 'Service area'),
+            _FieldLabel(text: l10n.photos),
             const SizedBox(height: 8),
-            _Input(initial: 'Dubai · Within 15 km'),
+            _PhotoRow(
+              count: imageKeys.length,
+              uploading: uploading,
+              onAdd: () async {
+                setSt(() => uploading = true);
+                try {
+                  final key = await _pickAndUploadPhoto();
+                  if (key != null) imageKeys.add(key);
+                } catch (e) {
+                  if (ctx.mounted) {
+                    ScaffoldMessenger.of(ctx)
+                      ..hideCurrentSnackBar()
+                      ..showSnackBar(SnackBar(content: Text(friendlyErrorMessage(e))));
+                  }
+                }
+                setSt(() => uploading = false);
+              },
+            ),
             const SizedBox(height: 16),
-            _FieldLabel(text: 'Availability'),
+            _FieldLabel(text: l10n.serviceArea),
             const SizedBox(height: 8),
-            _SelectBox(items: const ['Available now', 'By appointment', 'Weekdays only']),
+            _Input(initial: 'Bengaluru · Within 15 km'),
             const SizedBox(height: 24),
           ])),
           _SheetFoot(children: [
-            Expanded(flex: 1, child: _SheetBtn(label: 'Save draft', secondary: true, onTap: () => Navigator.pop(ctx))),
+            Expanded(flex: 1, child: _SheetBtn(label: l10n.saveDraft, secondary: true, onTap: () => submit(ctx, AdStatus.draft))),
             const SizedBox(width: 11),
-            Expanded(flex: 2, child: _SheetBtn(label: 'Publish ad', onTap: () {
-              Navigator.pop(ctx);
-              Future.delayed(const Duration(milliseconds: 250), () => _toast('⏳', 'Ad submitted for review', 'Goes live within 24 hours', gold: true));
-            })),
+            Expanded(flex: 2, child: _SheetBtn(label: l10n.publishAd, onTap: () => submit(ctx, AdStatus.active))),
           ]),
         ]),
       )),
     );
+  }
+
+  /// Picks one photo and uploads it, returning its storage key. Null when the
+  /// picker was dismissed.
+  Future<String?> _pickAndUploadPhoto() async {
+    // Resolved before the picker runs: the widget may be gone by the time the
+    // user comes back from the gallery.
+    final repository = context.read<MarketplaceRepository>();
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      // The backend downscales and re-encodes anyway; this just keeps the
+      // upload itself small.
+      maxWidth: 2000,
+    );
+    if (picked == null) return null;
+    return repository.uploadImage(picked.path);
   }
 
   void _showBankSheet() {
@@ -689,7 +1072,7 @@ class _SellerShellState extends State<SellerShell> {
           decoration: const BoxDecoration(color: SellerColors.bg, borderRadius: BorderRadius.vertical(top: Radius.circular(26))),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             const _SheetGrip(),
-            _SheetHead(title: 'Link bank account', onClose: () => Navigator.pop(ctx)),
+            _SheetHead(title: l10n.linkBankAccount, onClose: () => Navigator.pop(ctx)),
             Flexible(child: SingleChildScrollView(padding: const EdgeInsets.fromLTRB(18, 0, 18, 0), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Container(
                 padding: const EdgeInsets.all(13),
@@ -701,39 +1084,40 @@ class _SellerShellState extends State<SellerShell> {
                 ]),
               ),
               const SizedBox(height: 18),
-              _FieldLabel(text: 'Account holder name', required: true),
+              _FieldLabel(text: l10n.accountHolderName, required: true),
               const SizedBox(height: 8),
-              TextField(controller: nameCtrl, decoration: _inputDeco('As printed on your bank account')),
+              TextField(controller: nameCtrl, decoration: _inputDeco(l10n.asPrintedOnAccount)),
               const SizedBox(height: 16),
-              _FieldLabel(text: 'Bank name', required: true),
+              _FieldLabel(text: l10n.bankName, required: true),
               const SizedBox(height: 8),
-              _SelectBox(items: const ['Emirates NBD', 'FAB', 'ADCB', 'Mashreq', 'RAKBANK', 'Dubai Islamic Bank']),
+              _SelectBox(items: const ['HDFC Bank', 'ICICI Bank', 'State Bank of India', 'Axis Bank', 'Kotak Mahindra Bank', 'Punjab National Bank']),
               const SizedBox(height: 16),
-              _FieldLabel(text: 'IBAN', required: true),
+              _FieldLabel(text: l10n.accountNumber, required: true),
               const SizedBox(height: 8),
               TextField(
                 controller: ibanCtrl,
-                decoration: _inputDeco('AE00 0000 0000 0000 0000 000').copyWith(
+                decoration: _inputDeco('e.g. 50100123456789').copyWith(
                   errorText: ibanError,
                   suffixIcon: ibanCtrl.text.isNotEmpty ? const Icon(Icons.credit_card, color: SellerColors.teal500) : null,
                 ),
                 onChanged: (v) => setSt(() { ibanError = null; }),
               ),
               const SizedBox(height: 6),
-              const Text('UAE IBAN starts with AE and has 23 characters', style: TextStyle(fontSize: 11.5, color: SellerColors.muted)),
+              const Text('9–18 digits, as printed on your passbook or cheque', style: TextStyle(fontSize: 11.5, color: SellerColors.muted)),
               const SizedBox(height: 24),
             ]))),
             _SheetFoot(children: [
-              _SheetBtn(label: 'Link account', onTap: () {
-                final iban = ibanCtrl.text.replaceAll(' ', '');
-                if (nameCtrl.text.trim().isEmpty) { setSt(() => ibanError = 'Enter account holder name'); return; }
-                if (!RegExp(r'^AE\d{21}$', caseSensitive: false).hasMatch(iban)) {
-                  setSt(() => ibanError = 'Enter a valid 23-character UAE IBAN starting with AE');
+              _SheetBtn(label: l10n.linkAccount, onTap: () {
+                final account = ibanCtrl.text.replaceAll(' ', '');
+                if (nameCtrl.text.trim().isEmpty) { setSt(() => ibanError = l10n.enterAccountHolderName); return; }
+                // Indian account numbers are 9–18 digits; length varies by bank.
+                if (!RegExp(r'^\d{9,18}$').hasMatch(account)) {
+                  setSt(() => ibanError = l10n.enterValidAccountNumber);
                   return;
                 }
                 setState(() => _bankLinked = true);
                 Navigator.pop(ctx);
-                Future.delayed(const Duration(milliseconds: 250), () => _toast('🏦', 'Bank linked', 'You can now withdraw your earnings'));
+                Future.delayed(const Duration(milliseconds: 250), () => _toast('🏦', l10n.bankLinked, l10n.canNowWithdraw));
               }),
             ]),
           ]),
@@ -752,24 +1136,24 @@ class _SellerShellState extends State<SellerShell> {
         decoration: const BoxDecoration(color: SellerColors.bg, borderRadius: BorderRadius.vertical(top: Radius.circular(26))),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const _SheetGrip(),
-          _SheetHead(title: 'Withdraw earnings', onClose: () => Navigator.pop(ctx)),
+          _SheetHead(title: l10n.withdrawEarnings, onClose: () => Navigator.pop(ctx)),
           Padding(
             padding: const EdgeInsets.fromLTRB(18, 0, 18, 0),
             child: Column(children: [
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(color: SellerColors.card, borderRadius: BorderRadius.circular(16), boxShadow: const [BoxShadow(color: Color(0x0F101828), blurRadius: 22, offset: Offset(0, 6))]),
-                child: const Column(children: [
-                  Text('💰', style: TextStyle(fontSize: 30)),
-                  SizedBox(height: 8),
-                  Text('Available to withdraw', style: TextStyle(fontSize: 13, color: SellerColors.muted, fontWeight: FontWeight.w700)),
-                  Text('AED 3,280', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: SellerColors.teal600, letterSpacing: -0.5)),
+                child: Column(children: [
+                  const Text('💰', style: TextStyle(fontSize: 30)),
+                  const SizedBox(height: 8),
+                  Text(l10n.availableToWithdraw, style: const TextStyle(fontSize: 13, color: SellerColors.muted, fontWeight: FontWeight.w700)),
+                  Text('₹0', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: SellerColors.teal600, letterSpacing: -0.5)),
                 ]),
               ),
               const SizedBox(height: 16),
-              _FieldLabel(text: 'Amount'),
+              _FieldLabel(text: l10n.amount),
               const SizedBox(height: 8),
-              _Input(initial: '3280', prefix: 'AED', keyboardType: TextInputType.number),
+              _Input(hint: '0', prefix: '₹', keyboardType: TextInputType.number),
               const SizedBox(height: 16),
               if (!_bankLinked)
                 Container(
@@ -778,9 +1162,9 @@ class _SellerShellState extends State<SellerShell> {
                   child: Row(children: [
                     Container(width: 48, height: 48, decoration: BoxDecoration(color: SellerColors.amber50, borderRadius: BorderRadius.circular(13)), child: const Center(child: Text('🏦', style: TextStyle(fontSize: 23)))),
                     const SizedBox(width: 13),
-                    const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('No bank linked yet', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: SellerColors.ink)),
-                      Text('Add a payout method first', style: TextStyle(fontSize: 12.5, color: SellerColors.muted)),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(l10n.noBankLinkedYet, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: SellerColors.ink)),
+                      Text(l10n.addPayoutFirst, style: const TextStyle(fontSize: 12.5, color: SellerColors.muted)),
                     ])),
                     GestureDetector(
                       onTap: () { Navigator.pop(ctx); Future.delayed(const Duration(milliseconds: 250), () => _showBankSheet()); },
@@ -792,9 +1176,9 @@ class _SellerShellState extends State<SellerShell> {
             ]),
           ),
           _SheetFoot(children: [
-            _SheetBtn(label: 'Confirm withdrawal', onTap: () {
+            _SheetBtn(label: l10n.confirmWithdrawal, onTap: () {
               Navigator.pop(ctx);
-              Future.delayed(const Duration(milliseconds: 250), () => _toast('💸', 'Withdrawal requested', 'Funds arrive in 1–2 business days'));
+              Future.delayed(const Duration(milliseconds: 250), () => _toast('💸', l10n.withdrawalRequested, l10n.fundsArriveIn));
             }),
           ]),
         ]),
@@ -817,48 +1201,73 @@ class _SellerShellState extends State<SellerShell> {
           decoration: const BoxDecoration(color: SellerColors.bg, borderRadius: BorderRadius.vertical(top: Radius.circular(26))),
           child: Column(children: [
             const _SheetGrip(),
-            _SheetHead(title: 'Notifications', onClose: () => Navigator.pop(ctx)),
+            _SheetHead(title: l10n.profileNotifications, onClose: () => Navigator.pop(ctx)),
             Expanded(
-              child: ListView.builder(
-                controller: ctrl,
-                padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
-                itemCount: sellerNotifs.length,
-                itemBuilder: (_, i) {
-                  final n = sellerNotifs[i];
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 11),
-                    padding: const EdgeInsets.all(15),
-                    decoration: BoxDecoration(
-                      color: SellerColors.card,
-                      borderRadius: BorderRadius.circular(16),
-                      border: n.unread ? const Border(left: BorderSide(color: SellerColors.teal500, width: 4)) : null,
-                      boxShadow: const [BoxShadow(color: Color(0x0F101828), blurRadius: 22, offset: Offset(0, 6))],
-                    ),
-                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Container(width: 44, height: 44, decoration: BoxDecoration(color: n.tileBg, borderRadius: BorderRadius.circular(13)), child: Center(child: Text(n.icon, style: const TextStyle(fontSize: 21)))),
-                      const SizedBox(width: 13),
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(n.title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: SellerColors.ink)),
-                        const SizedBox(height: 2),
-                        Text(n.body, style: const TextStyle(fontSize: 12.5, color: SellerColors.ink2, height: 1.4)),
-                        const SizedBox(height: 5),
-                        Text(n.time, style: const TextStyle(fontSize: 11, color: SellerColors.muted2, fontWeight: FontWeight.w600)),
-                        if (n.hasAction) ...[
-                          const SizedBox(height: 11),
-                          Row(children: [
-                            Expanded(child: GestureDetector(
-                              onTap: () { Navigator.pop(ctx); _toast('✗', 'Declined', 'Customer notified'); },
-                              child: Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: SellerColors.red50, borderRadius: BorderRadius.circular(11)), child: const Center(child: Text('Decline', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: SellerColors.red)))),
-                            )),
-                            const SizedBox(width: 8),
-                            Expanded(child: GestureDetector(
-                              onTap: () { Navigator.pop(ctx); _toast('✓', 'Accepted', 'Added to active jobs'); },
-                              child: Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: SellerColors.teal600, borderRadius: BorderRadius.circular(11)), child: const Center(child: Text('Accept', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Colors.white)))),
-                            )),
-                          ]),
-                        ],
-                      ])),
-                    ]),
+              // The seller's notifications are the same per-user feed the app
+              // already has — order events raised by the backend land here, so
+              // there is no separate seller feed to build.
+              child: FutureBuilder<List<NotificationModel>>(
+                future: context.read<NotificationsRepository>().getNotifications(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: CircularProgressIndicator(color: SellerColors.teal600),
+                    );
+                  }
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32),
+                        child: Text(
+                          friendlyErrorMessage(snapshot.error!),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 13, color: SellerColors.muted),
+                        ),
+                      ),
+                    );
+                  }
+                  final items = snapshot.data ?? const <NotificationModel>[];
+                  if (items.isEmpty) {
+                    return Center(
+                      child: Text(l10n.noNotificationsYet,
+                          style: const TextStyle(fontSize: 13, color: SellerColors.muted)),
+                    );
+                  }
+                  return ListView.builder(
+                    controller: ctrl,
+                    padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
+                    itemCount: items.length,
+                    itemBuilder: (_, i) {
+                      final n = items[i];
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 11),
+                        padding: const EdgeInsets.all(15),
+                        decoration: BoxDecoration(
+                          color: SellerColors.card,
+                          borderRadius: BorderRadius.circular(16),
+                          border: n.isUnread
+                              ? const Border(left: BorderSide(color: SellerColors.teal500, width: 4))
+                              : null,
+                          boxShadow: const [BoxShadow(color: Color(0x0F101828), blurRadius: 22, offset: Offset(0, 6))],
+                        ),
+                        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(color: Color(n.colorHex), borderRadius: BorderRadius.circular(13)),
+                            child: Center(child: Text(n.icon, style: const TextStyle(fontSize: 21))),
+                          ),
+                          const SizedBox(width: 13),
+                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(n.title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: SellerColors.ink)),
+                            const SizedBox(height: 2),
+                            Text(n.message, style: const TextStyle(fontSize: 12.5, color: SellerColors.ink2, height: 1.4)),
+                            const SizedBox(height: 5),
+                            Text(n.time, style: const TextStyle(fontSize: 11, color: SellerColors.muted2, fontWeight: FontWeight.w600)),
+                          ])),
+                        ]),
+                      );
+                    },
                   );
                 },
               ),
@@ -869,11 +1278,20 @@ class _SellerShellState extends State<SellerShell> {
     );
   }
 
-  void _showOrderSheet(SellerOrder order) {
-    final isNew = order.status == 'new';
-    final badgeColor = {'new': SellerColors.amber, 'progress': SellerColors.blue, 'completed': SellerColors.green}[order.status] ?? SellerColors.muted;
-    final badgeBg = {'new': SellerColors.amber50, 'progress': SellerColors.blue50, 'completed': SellerColors.green50}[order.status] ?? SellerColors.bg;
-    final badgeLabel = {'new': 'New request', 'progress': 'In progress', 'completed': 'Completed'}[order.status] ?? '';
+  void _showOrderSheet(AdOrderModel order) {
+    final cubit = context.read<SellerOrdersCubit>();
+    final (badgeLabel, badgeColor, badgeBg) = switch (order.status) {
+      AdOrderStatus.newOrder => (l10n.newRequest, SellerColors.amber, SellerColors.amber50),
+      AdOrderStatus.inProgress => (l10n.inProgress, SellerColors.blue, SellerColors.blue50),
+      AdOrderStatus.completed => (l10n.statusCompleted, SellerColors.green, SellerColors.green50),
+      AdOrderStatus.cancelled => (l10n.statusCancelled, SellerColors.red, SellerColors.red50),
+    };
+
+    Future<void> move(BuildContext ctx, AdOrderStatus next) async {
+      Navigator.pop(ctx);
+      await cubit.setStatus(order.id, next);
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -883,18 +1301,17 @@ class _SellerShellState extends State<SellerShell> {
         decoration: const BoxDecoration(color: SellerColors.bg, borderRadius: BorderRadius.vertical(top: Radius.circular(26))),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const _SheetGrip(),
-          _SheetHead(title: 'Booking request', onClose: () => Navigator.pop(ctx)),
+          _SheetHead(title: l10n.bookingRequest, onClose: () => Navigator.pop(ctx)),
           Flexible(child: SingleChildScrollView(padding: const EdgeInsets.fromLTRB(18, 0, 18, 0), child: Column(children: [
-            // Hero
             Container(
               padding: const EdgeInsets.all(18),
               margin: const EdgeInsets.only(bottom: 14),
               decoration: BoxDecoration(color: SellerColors.card, borderRadius: BorderRadius.circular(16), boxShadow: const [BoxShadow(color: Color(0x0F101828), blurRadius: 22, offset: Offset(0, 6))]),
               child: Column(children: [
-                Container(width: 62, height: 62, decoration: BoxDecoration(color: order.tileBg, borderRadius: BorderRadius.circular(20)), child: Center(child: Text(order.emoji, style: const TextStyle(fontSize: 30)))),
+                Container(width: 62, height: 62, decoration: BoxDecoration(color: SellerColors.bg, borderRadius: BorderRadius.circular(20)), child: Center(child: Text(order.icon, style: const TextStyle(fontSize: 30)))),
                 const SizedBox(height: 11),
-                Text(order.service, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: SellerColors.ink)),
-                Text(order.amount, style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: SellerColors.teal600, letterSpacing: -0.5)),
+                Text(order.serviceName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: SellerColors.ink)),
+                Text(order.amountLabel, style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: SellerColors.teal600, letterSpacing: -0.5)),
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
@@ -903,27 +1320,65 @@ class _SellerShellState extends State<SellerShell> {
                 ),
               ]),
             ),
-            // Details
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               decoration: BoxDecoration(color: SellerColors.card, borderRadius: BorderRadius.circular(16), boxShadow: const [BoxShadow(color: Color(0x0F101828), blurRadius: 22, offset: Offset(0, 6))]),
               child: Column(children: [
-                _OdRow(icon: '🎫', label: 'Order ID', value: order.id),
-                _OdRow(icon: '👤', label: 'Customer', value: order.customerName),
-                if (order.phone.isNotEmpty) _OdRow(icon: '📞', label: 'Contact', value: order.phone),
-                _OdRow(icon: '📅', label: 'Schedule', value: order.when),
-                if (order.address.isNotEmpty) _OdRow(icon: '📍', label: 'Location', value: order.address),
-                _OdRow(icon: '💵', label: 'You earn (after 12% fee)', value: 'AED ${(double.tryParse(order.amount.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0 * 0.88).toStringAsFixed(0)}', valueColor: SellerColors.green, isLast: true),
+                _OdRow(icon: '🎫', label: l10n.orderId, value: order.code),
+                _OdRow(icon: '👤', label: l10n.customer, value: order.customerName),
+                if (order.customerPhone.isNotEmpty)
+                  _OdRow(icon: '📞', label: l10n.contactLabel, value: order.customerPhone),
+                _OdRow(icon: '📅', label: l10n.stepSchedule, value: order.whenLabel),
+                if (order.addressText.isNotEmpty)
+                  _OdRow(icon: '📍', label: l10n.stepLocation, value: order.addressText),
+                if (order.note != null && order.note!.isNotEmpty)
+                  _OdRow(icon: '📝', label: l10n.description, value: order.note!),
+                // The seller's cut. Deliberately not a payout figure — nothing
+                // moves money yet, so this is the fee arithmetic only.
+                _OdRow(
+                  icon: '💵',
+                  label: l10n.youEarnAfterFee,
+                  value: '₹${(order.amount * 0.88).toStringAsFixed(0)}',
+                  valueColor: SellerColors.green,
+                  isLast: true,
+                ),
               ]),
             ),
             const SizedBox(height: 24),
           ]))),
-          if (isNew) _SheetFoot(children: [
-            Expanded(flex: 1, child: _SheetBtn(label: 'Decline', danger: true, onTap: () { Navigator.pop(ctx); _toast('✗', 'Declined', 'The customer has been notified'); })),
-            const SizedBox(width: 11),
-            Expanded(flex: 2, child: _SheetBtn(label: 'Accept job', onTap: () { Navigator.pop(ctx); _toast('✓', 'Booking accepted', 'Added to your active jobs'); })),
-          ]),
-          if (!isNew) const SizedBox(height: 24),
+          // The actions mirror the backend's transition table: a new order can
+          // be accepted or declined, one in progress can be completed, and a
+          // finished one offers nothing.
+          if (order.status == AdOrderStatus.newOrder)
+            _SheetFoot(children: [
+              Expanded(
+                flex: 1,
+                child: _SheetBtn(
+                  label: l10n.decline,
+                  danger: true,
+                  onTap: () => move(ctx, AdOrderStatus.cancelled),
+                ),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                flex: 2,
+                child: _SheetBtn(
+                  label: l10n.acceptJob,
+                  onTap: () => move(ctx, AdOrderStatus.inProgress),
+                ),
+              ),
+            ])
+          else if (order.status == AdOrderStatus.inProgress)
+            _SheetFoot(children: [
+              Expanded(
+                child: _SheetBtn(
+                  label: l10n.markCompleted,
+                  onTap: () => move(ctx, AdOrderStatus.completed),
+                ),
+              ),
+            ])
+          else
+            const SizedBox(height: 24),
         ]),
       ),
     );
@@ -982,43 +1437,49 @@ class _StatCard extends StatelessWidget {
 
 class _OrderRow extends StatelessWidget {
   const _OrderRow({required this.order, required this.isLast, required this.onTap});
-  final SellerOrder order;
+  final AdOrderModel order;
   final bool isLast;
   final VoidCallback onTap;
 
-  static const _badgeData = {
-    'new': ('New', SellerColors.amber, SellerColors.amber50),
-    'progress': ('In progress', SellerColors.blue, SellerColors.blue50),
-    'completed': ('Done', SellerColors.green, SellerColors.green50),
-    'cancelled': ('Cancelled', SellerColors.red, SellerColors.red50),
-  };
-
   @override
   Widget build(BuildContext context) {
-    final bd = _badgeData[order.status] ?? ('Unknown', SellerColors.muted, SellerColors.bg);
+    final l10n = AppLocalizations.of(context);
+    final (label, fg, bg) = switch (order.status) {
+      AdOrderStatus.newOrder => (l10n.homeBadgeNew, SellerColors.amber, SellerColors.amber50),
+      AdOrderStatus.inProgress => (l10n.inProgress, SellerColors.blue, SellerColors.blue50),
+      AdOrderStatus.completed => (l10n.done, SellerColors.green, SellerColors.green50),
+      AdOrderStatus.cancelled => (l10n.statusCancelled, SellerColors.red, SellerColors.red50),
+    };
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(border: isLast ? null : const Border(bottom: BorderSide(color: SellerColors.line))),
         child: Row(children: [
-          Container(width: 46, height: 46, decoration: BoxDecoration(color: order.tileBg, borderRadius: BorderRadius.circular(14)), child: Center(child: Text(order.emoji, style: const TextStyle(fontSize: 23)))),
+          Container(width: 46, height: 46, decoration: BoxDecoration(color: SellerColors.bg, borderRadius: BorderRadius.circular(14)), child: Center(child: Text(order.icon, style: const TextStyle(fontSize: 23)))),
           const SizedBox(width: 13),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(order.service, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: SellerColors.ink)),
+            Text(order.serviceName, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: SellerColors.ink)),
             const SizedBox(height: 2),
             Row(children: [
               const Text('👤 ', style: TextStyle(fontSize: 12)),
-              Text('${order.customerName} · ${order.when}', style: const TextStyle(fontSize: 12, color: SellerColors.muted)),
+              Expanded(
+                child: Text(
+                  '${order.customerName} · ${order.whenLabel}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12, color: SellerColors.muted),
+                ),
+              ),
             ]),
           ])),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(order.amount, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: SellerColors.ink)),
+            Text(order.amountLabel, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: SellerColors.ink)),
             const SizedBox(height: 5),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-              decoration: BoxDecoration(color: bd.$3, borderRadius: BorderRadius.circular(20)),
-              child: Text(bd.$1, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: bd.$2)),
+              decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+              child: Text(label, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: fg)),
             ),
           ]),
         ]),
@@ -1027,19 +1488,28 @@ class _OrderRow extends StatelessWidget {
   }
 }
 
-class _ListingCard extends StatelessWidget {
-  const _ListingCard({required this.listing});
-  final SellerListing listing;
+/// A real listing from `GET /marketplace/my-ads`, with the two actions the
+/// seller can take on it.
+class _AdCard extends StatelessWidget {
+  const _AdCard({
+    required this.ad,
+    required this.onTogglePause,
+    required this.onDelete,
+  });
 
-  static const _statusData = {
-    'active': ('Active', SellerColors.green, SellerColors.green50),
-    'pending': ('In review', SellerColors.amber, SellerColors.amber50),
-    'paused': ('Paused', SellerColors.muted, SellerColors.bg),
-  };
+  final AdModel ad;
+  final VoidCallback onTogglePause;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
-    final sd = _statusData[listing.status] ?? ('Unknown', SellerColors.muted, SellerColors.bg);
+    final l10n = AppLocalizations.of(context);
+    final (label, fg) = switch (ad.status) {
+      AdStatus.active => (l10n.tabActive, SellerColors.green),
+      AdStatus.draft => (l10n.inReview, SellerColors.amber),
+      AdStatus.paused => (l10n.paused, SellerColors.muted),
+    };
+
     return Container(
       margin: const EdgeInsets.only(bottom: 13),
       decoration: BoxDecoration(color: SellerColors.card, borderRadius: BorderRadius.circular(16), boxShadow: const [BoxShadow(color: Color(0x0F101828), blurRadius: 22, offset: Offset(0, 6))]),
@@ -1047,15 +1517,26 @@ class _ListingCard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
           height: 118,
-          color: listing.tileBg,
+          color: SellerColors.bg,
           child: Stack(children: [
-            Center(child: Text(listing.emoji, style: const TextStyle(fontSize: 48))),
+            // The first uploaded photo, or the emoji the ad carries until one
+            // exists — the backend sends the emoji precisely for this.
+            Positioned.fill(
+              child: ad.imageUrls.isEmpty
+                  ? Center(child: Text(ad.icon, style: const TextStyle(fontSize: 48)))
+                  : Image.network(
+                      ad.imageUrls.first,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) =>
+                          Center(child: Text(ad.icon, style: const TextStyle(fontSize: 48))),
+                    ),
+            ),
             Positioned(
               top: 11, left: 11,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                 decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.92), borderRadius: BorderRadius.circular(20)),
-                child: Text(sd.$1, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: sd.$2)),
+                child: Text(label, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: fg)),
               ),
             ),
           ]),
@@ -1063,23 +1544,30 @@ class _ListingCard extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(15, 13, 15, 15),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(listing.category.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: SellerColors.teal500, letterSpacing: 0.5)),
+            Text(ad.categorySlug.replaceAll('_', ' ').toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: SellerColors.teal500, letterSpacing: 0.5)),
             const SizedBox(height: 3),
-            Text(listing.title, style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: SellerColors.ink, letterSpacing: -0.2)),
+            Text(ad.title, style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: SellerColors.ink, letterSpacing: -0.2)),
             const SizedBox(height: 2),
-            Row(children: [
-              Text(listing.price, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: SellerColors.ink)),
-              Text(' ${listing.unit}', style: const TextStyle(fontSize: 12, color: SellerColors.muted, fontWeight: FontWeight.w600)),
-            ]),
+            Text(ad.priceLabel, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: SellerColors.ink)),
             const Divider(color: SellerColors.line, height: 22),
             Row(children: [
               const Text('👁 ', style: TextStyle(fontSize: 12)),
-              Text('${listing.views} views', style: const TextStyle(fontSize: 12, color: SellerColors.muted, fontWeight: FontWeight.w600)),
+              Text('${ad.viewCount}', style: const TextStyle(fontSize: 12, color: SellerColors.muted, fontWeight: FontWeight.w600)),
               const SizedBox(width: 16),
-              const Text('📅 ', style: TextStyle(fontSize: 12)),
-              Text('${listing.bookings} bookings', style: const TextStyle(fontSize: 12, color: SellerColors.muted, fontWeight: FontWeight.w600)),
+              const Text('❤ ', style: TextStyle(fontSize: 12)),
+              Text('${ad.wishlistCount}', style: const TextStyle(fontSize: 12, color: SellerColors.muted, fontWeight: FontWeight.w600)),
               const Spacer(),
-              const Text('Edit ›', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: SellerColors.teal500)),
+              TextButton(
+                onPressed: onTogglePause,
+                child: Text(
+                  ad.status == AdStatus.paused ? l10n.resumeListing : l10n.pauseListing,
+                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: SellerColors.teal500),
+                ),
+              ),
+              IconButton(
+                onPressed: onDelete,
+                icon: const Icon(Icons.delete_outline, size: 19, color: SellerColors.muted),
+              ),
             ]),
           ]),
         ),
@@ -1110,7 +1598,7 @@ class _TxnRow extends StatelessWidget {
           Text(txn.date, style: const TextStyle(fontSize: 11.5, color: SellerColors.muted)),
         ])),
         Text(
-          '${txn.isCredit ? '+' : '-'}AED ${txn.amount}',
+          '${txn.isCredit ? '+' : '-'}₹${txn.amount}',
           style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: txn.isCredit ? SellerColors.green : SellerColors.ink2),
         ),
       ]),
@@ -1228,16 +1716,28 @@ InputDecoration _inputDeco(String hint) => InputDecoration(
 );
 
 class _Input extends StatelessWidget {
-  const _Input({this.hint = '', this.initial, this.prefix, this.keyboardType, this.maxLines = 1});
+  const _Input({
+    this.hint = '',
+    this.initial,
+    this.prefix,
+    this.keyboardType,
+    this.maxLines = 1,
+    this.controller,
+  });
   final String hint;
   final String? initial, prefix;
   final TextInputType? keyboardType;
   final int maxLines;
 
+  /// Supplied for the fields the sheet actually submits. Without one the
+  /// TextField is display-only, which is all the rest of them need.
+  final TextEditingController? controller;
+
   @override
   Widget build(BuildContext context) {
     return TextField(
-      controller: initial != null ? TextEditingController(text: initial) : null,
+      controller:
+          controller ?? (initial != null ? TextEditingController(text: initial) : null),
       keyboardType: keyboardType,
       maxLines: maxLines,
       decoration: _inputDeco(hint).copyWith(
@@ -1249,8 +1749,10 @@ class _Input extends StatelessWidget {
 }
 
 class _SelectBox extends StatelessWidget {
-  const _SelectBox({required this.items});
+  const _SelectBox({required this.items, this.value, this.onChanged});
   final List<String> items;
+  final String? value;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -1258,12 +1760,58 @@ class _SelectBox extends StatelessWidget {
     decoration: BoxDecoration(color: SellerColors.card, borderRadius: BorderRadius.circular(14), border: Border.all(color: SellerColors.line, width: 1.5)),
     child: DropdownButtonHideUnderline(
       child: DropdownButton<String>(
-        value: items.first,
+        value: value ?? items.first,
         isExpanded: true,
         icon: const Icon(Icons.keyboard_arrow_down, color: SellerColors.muted),
         items: items.map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontSize: 15, color: SellerColors.ink)))).toList(),
-        onChanged: (_) {},
+        onChanged: (v) {
+          if (v != null) onChanged?.call(v);
+        },
       ),
     ),
   );
+}
+
+/// Photo picker row for the post-ad sheet. Each tap uploads immediately via
+/// `POST /uploads/image`; the returned keys travel with the listing when it is
+/// saved, which is the only way the backend can attach them.
+class _PhotoRow extends StatelessWidget {
+  const _PhotoRow({required this.count, required this.uploading, required this.onAdd});
+
+  final int count;
+  final bool uploading;
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Row(children: [
+      GestureDetector(
+        onTap: uploading ? null : onAdd,
+        child: Container(
+          width: 84,
+          height: 72,
+          decoration: BoxDecoration(
+            color: SellerColors.card,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: SellerColors.line, width: 1.5),
+          ),
+          child: Center(
+            child: uploading
+                ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: SellerColors.teal600),
+                  )
+                : const Icon(Icons.add_a_photo_outlined, color: SellerColors.muted, size: 22),
+          ),
+        ),
+      ),
+      const SizedBox(width: 12),
+      Text(
+        count == 0 ? l10n.addPhoto : l10n.photosAdded(count),
+        style: const TextStyle(fontSize: 12.5, color: SellerColors.muted, fontWeight: FontWeight.w600),
+      ),
+    ]);
+  }
 }

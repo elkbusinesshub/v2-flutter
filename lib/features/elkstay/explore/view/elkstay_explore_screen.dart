@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/theme/elkstay_colors.dart';
 import '../../../../core/widgets/state_views.dart';
 import '../../../../data/models/stay_models.dart';
+import '../../../../l10n/app_localizations.dart';
 import '../cubit/elkstay_explore_cubit.dart';
 
 class ElkStayExploreScreen extends StatefulWidget {
@@ -50,26 +51,27 @@ class _ElkStayExploreScreenState extends State<ElkStayExploreScreen> {
   }
 
   Widget _buildBody(BuildContext context, ElkStayExploreState state) {
+    final l10n = AppLocalizations.of(context);
     if (state.status == ElkStayExploreStatus.loading ||
         state.status == ElkStayExploreStatus.initial) {
       return const LoadingView();
     }
     if (state.status == ElkStayExploreStatus.error) {
       return ErrorRetryView(
-        message: state.errorMessage ?? 'Something went wrong',
+        message: state.errorMessage ?? l10n.errorGeneric,
         onRetry: () => context.read<ElkStayExploreCubit>().loadStays(),
       );
     }
     if (state.stays.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.search_off, size: 48, color: ElkStayColors.muted),
-            SizedBox(height: 12),
+            const Icon(Icons.search_off, size: 48, color: ElkStayColors.muted),
+            const SizedBox(height: 12),
             Text(
-              'No stays found',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: ElkStayColors.muted),
+              l10n.noStaysFound,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: ElkStayColors.muted),
             ),
           ],
         ),
@@ -142,6 +144,7 @@ class _FilterChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final cubit = context.read<ElkStayExploreCubit>();
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -149,26 +152,26 @@ class _FilterChips extends StatelessWidget {
       child: Row(
         children: [
           _Chip(
-            label: 'Verified',
+            label: l10n.verified,
             icon: Icons.verified,
             active: state.verifiedOnly,
             onTap: cubit.toggleVerified,
           ),
           const SizedBox(width: 8),
           _Chip(
-            label: 'Under ₹12k',
+            label: l10n.underTwelveK,
             active: state.priceFilter,
             onTap: cubit.togglePriceFilter,
           ),
           const SizedBox(width: 8),
           _Chip(
-            label: 'Single room',
+            label: l10n.singleRoom,
             active: state.singleRoomOnly,
             onTap: cubit.toggleSingleRoom,
           ),
           const SizedBox(width: 8),
           _Chip(
-            label: 'Meals',
+            label: l10n.meals,
             active: state.mealsIncluded,
             onTap: cubit.toggleMeals,
           ),
@@ -230,6 +233,7 @@ class _StayListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -347,14 +351,14 @@ class _StayListCard extends StatelessWidget {
                             color: const Color(0xFFE1F0E9),
                             borderRadius: BorderRadius.circular(7),
                           ),
-                          child: const Row(
+                          child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.verified, size: 12, color: Color(0xFF1A7A52)),
-                              SizedBox(width: 3),
+                              const Icon(Icons.verified, size: 12, color: Color(0xFF1A7A52)),
+                              const SizedBox(width: 3),
                               Text(
-                                'Verified',
-                                style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF1A7A52)),
+                                l10n.verified,
+                                style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF1A7A52)),
                               ),
                             ],
                           ),

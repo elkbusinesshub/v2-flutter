@@ -1,6 +1,6 @@
 part of 'rental_cubit.dart';
 
-enum RentalStatus { initial, loading, loaded, error }
+enum RentalStatus { initial, loading, loaded, error, guest }
 
 class RentalState extends Equatable {
   const RentalState({

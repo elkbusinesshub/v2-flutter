@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../core/widgets/state_views.dart';
+import '../../../data/models/rental_models.dart';
+import '../../../core/utils/app_preferences.dart';
+import '../../../data/repositories/marketplace_repository.dart';
+import '../../../l10n/app_localizations.dart';
+import '../cubit/rental_booking_cubit.dart';
+import '../cubit/rental_cubit.dart';
 import 'rental_booking_flow.dart';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
@@ -20,29 +28,21 @@ const _line = Color(0xFFE6EBE5);
 const _chip = Color(0xFFEFF2EE);
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
-const _cars = [
-  (name: 'Toyota Camry',    cat: 'sedan',  svg: 'assets/icons/rental_sedan.svg',  seats: 5, trans: 'Automatic', fuel: 'Petrol', rating: 4.8, day: 199, badge: 'BEST DEAL'),
-  (name: 'Honda Civic',     cat: 'sedan',  svg: 'assets/icons/rental_sedan.svg',  seats: 5, trans: 'Automatic', fuel: 'Petrol', rating: 4.7, day: 179, badge: null),
-  (name: 'Nissan Patrol',   cat: 'suv',    svg: 'assets/icons/rental_suv.svg',    seats: 7, trans: 'Automatic', fuel: 'Petrol', rating: 4.7, day: 349, badge: null),
-  (name: 'Hyundai Tucson',  cat: 'suv',    svg: 'assets/icons/rental_suv.svg',    seats: 5, trans: 'Automatic', fuel: 'Petrol', rating: 4.6, day: 289, badge: null),
-  (name: 'Mercedes E-Class', cat: 'luxury', svg: 'assets/icons/rental_luxury.svg', seats: 4, trans: 'Automatic', fuel: 'Petrol', rating: 4.9, day: 599, badge: 'PREMIUM'),
-  (name: 'BMW 5 Series',    cat: 'luxury', svg: 'assets/icons/rental_luxury.svg', seats: 5, trans: 'Automatic', fuel: 'Petrol', rating: 4.8, day: 549, badge: null),
-];
 
-typedef _CarRec = ({String name, String cat, String svg, int seats, String trans, String fuel, double rating, int day, String? badge});
+List<({String id, String label, int mult, String unit})> _periodsFor(
+  AppLocalizations l10n,
+) => [
+      (id: 'day', label: l10n.rateDaily, mult: 1, unit: '/day'),
+      (id: 'week', label: l10n.weekly, mult: 6, unit: '/week'),
+      (id: 'month', label: l10n.monthly, mult: 22, unit: '/month'),
+    ];
 
-const _periods = [
-  (id: 'day',   label: 'Daily',   mult: 1,  unit: '/day'),
-  (id: 'week',  label: 'Weekly',  mult: 6,  unit: '/week'),
-  (id: 'month', label: 'Monthly', mult: 22, unit: '/month'),
-];
-
-const _cats = [
-  (id: 'all',    label: 'All'),
-  (id: 'sedan',  label: 'Sedan'),
-  (id: 'suv',    label: 'SUV'),
-  (id: 'luxury', label: 'Luxury'),
-];
+List<({String id, String label})> _catsFor(AppLocalizations l10n) => [
+      (id: 'all', label: l10n.chipAll),
+      (id: 'sedan', label: l10n.svcSedan),
+      (id: 'suv', label: l10n.svcSuv),
+      (id: 'luxury', label: l10n.svcLuxury),
+    ];
 
 // ─── RentalScreen ───────────────────────────────────────────────────────────
 class RentalScreen extends StatefulWidget {
@@ -53,23 +53,54 @@ class RentalScreen extends StatefulWidget {
 }
 
 class _RentalScreenState extends State<RentalScreen> {
+  AppLocalizations get l10n => AppLocalizations.of(context);
+
   String _period = 'day';
   String _cat = 'all';
 
-  List<_CarRec> get _filtered =>
-      _cars.where((c) => _cat == 'all' || c.cat == _cat).toList();
+  @override
+  void initState() {
+    super.initState();
+    context.read<RentalCubit>().loadCars();
+  }
+
+  /// Period chips are display-only (the backend prices per day and applies
+  /// the rental-type multiplier at quote time).
+  static const _periodToFilter = {'day': 'daily', 'week': 'weekly', 'month': 'monthly'};
 
   @override
   Widget build(BuildContext context) {
     final top = MediaQuery.of(context).padding.top;
-    final periodMeta = _periods.firstWhere((p) => p.id == _period);
-    final list = _filtered;
+    final periodMeta = _periodsFor(l10n).firstWhere((p) => p.id == _period);
+    final state = context.watch<RentalCubit>().state;
+    final list = state.cars;
+
+    if (state.status == RentalStatus.guest) {
+      return Scaffold(
+        backgroundColor: _bg,
+        body: SafeArea(
+          child: SignInRequiredView(
+            message: l10n.rentalSignInPrompt,
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: _bg,
       body: Column(children: [
         _buildHeader(top),
         _buildFilterBar(),
+        if (state.status == RentalStatus.loading || state.status == RentalStatus.initial)
+          const Expanded(child: LoadingView())
+        else if (state.status == RentalStatus.error)
+          Expanded(
+            child: ErrorRetryView(
+              message: state.errorMessage ?? l10n.errorGeneric,
+              onRetry: () => context.read<RentalCubit>().loadCars(),
+            ),
+          )
+        else
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(18, 16, 18, 22),
@@ -83,7 +114,7 @@ class _RentalScreenState extends State<RentalScreen> {
                         style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w800, color: _i9),
                       ),
                       TextSpan(
-                        text: 'cars available',
+                        text: l10n.carsAvailable,
                         style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w800, color: _i5),
                       ),
                     ]),
@@ -93,7 +124,7 @@ class _RentalScreenState extends State<RentalScreen> {
                 ),
                 const SizedBox(width: 8),
                 Row(children: [
-                  Text('Sort: Price', style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w800, color: _tDk)),
+                  Text(l10n.sortPrice, style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w800, color: _tDk)),
                   const SizedBox(width: 5),
                   const Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: _tDk),
                 ]),
@@ -104,7 +135,7 @@ class _RentalScreenState extends State<RentalScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 40),
                   child: Center(
                     child: Text(
-                      'No cars in this category right now.',
+                      l10n.noCarsInCategory,
                       style: GoogleFonts.plusJakartaSans(fontSize: 13.5, fontWeight: FontWeight.w700, color: _i4),
                     ),
                   ),
@@ -153,7 +184,7 @@ class _RentalScreenState extends State<RentalScreen> {
             ),
           ),
           const SizedBox(width: 14),
-          Text('Car Rental', style: GoogleFonts.nunito(fontSize: 19, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.3)),
+          Text(l10n.svcCarRental, style: GoogleFonts.nunito(fontSize: 19, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.3)),
           const Spacer(),
           SvgPicture.asset('assets/icons/elk_logo.svg', height: 24),
         ]),
@@ -171,12 +202,19 @@ class _RentalScreenState extends State<RentalScreen> {
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 18),
-          child: Row(children: _periods.map((p) {
+          child: Row(children: _periodsFor(l10n).map((p) {
             final on = _period == p.id;
             return Padding(
               padding: const EdgeInsets.only(right: 9),
               child: GestureDetector(
-                onTap: () => setState(() => _period = p.id),
+                onTap: () {
+                  setState(() => _period = p.id);
+                  context.read<RentalCubit>().selectPeriod(
+                        RentalPeriod.values.firstWhere(
+                          (e) => e.id == _periodToFilter[p.id],
+                        ),
+                      );
+                },
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 11),
                   decoration: BoxDecoration(
@@ -195,12 +233,15 @@ class _RentalScreenState extends State<RentalScreen> {
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 18),
-          child: Row(children: _cats.map((c) {
+          child: Row(children: _catsFor(l10n).map((c) {
             final on = _cat == c.id;
             return Padding(
               padding: const EdgeInsets.only(right: 9),
               child: GestureDetector(
-                onTap: () => setState(() => _cat = c.id),
+                onTap: () {
+                  setState(() => _cat = c.id);
+                  context.read<RentalCubit>().selectTypeFilter(c.id);
+                },
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
                   decoration: BoxDecoration(
@@ -219,8 +260,8 @@ class _RentalScreenState extends State<RentalScreen> {
 
   // ─── Car card ─────────────────────────────────────────────────────────────
 
-  Widget _buildCarCard(_CarRec c, ({String id, String label, int mult, String unit}) periodMeta) {
-    final price = c.day * periodMeta.mult;
+  Widget _buildCarCard(RentalCarModel c, ({String id, String label, int mult, String unit}) periodMeta) {
+    final price = (c.pricePerDay * periodMeta.mult).round();
     final isPremium = c.badge == 'PREMIUM';
     return Container(
       padding: const EdgeInsets.all(14),
@@ -238,7 +279,7 @@ class _RentalScreenState extends State<RentalScreen> {
               gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFFEAF6F2), Color(0xFFD6EEE6)]),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Center(child: SvgPicture.asset(c.svg, width: 92, height: 60)),
+            child: Center(child: SvgPicture.asset(c.svgAsset, width: 92, height: 60)),
           ),
           const SizedBox(width: 13),
           Expanded(
@@ -258,7 +299,7 @@ class _RentalScreenState extends State<RentalScreen> {
               const SizedBox(height: 8),
               Wrap(spacing: 12, runSpacing: 4, children: [
                 _spec(Icons.person_outline_rounded, '${c.seats} Seats'),
-                _spec(Icons.settings_outlined, c.trans),
+                _spec(Icons.settings_outlined, c.transmission),
                 _spec(Icons.local_gas_station_outlined, c.fuel),
               ]),
               const SizedBox(height: 8),
@@ -286,7 +327,7 @@ class _RentalScreenState extends State<RentalScreen> {
             Expanded(
               child: Text.rich(
                 TextSpan(children: [
-                  TextSpan(text: 'AED ${price.toString()}', style: GoogleFonts.nunito(fontSize: 21, fontWeight: FontWeight.w900, color: _i9, letterSpacing: -0.5)),
+                  TextSpan(text: '₹${price.toString()}', style: GoogleFonts.nunito(fontSize: 21, fontWeight: FontWeight.w900, color: _i9, letterSpacing: -0.5)),
                   TextSpan(text: ' ${periodMeta.unit}', style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w700, color: _i4)),
                 ]),
                 maxLines: 1,
@@ -298,14 +339,18 @@ class _RentalScreenState extends State<RentalScreen> {
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => RentalBookingFlow(
-                    carName: c.name,
-                    dayRate: c.day,
-                    carSvg: c.svg,
-                    seats: c.seats,
-                    trans: c.trans,
-                    fuel: c.fuel,
-                    badge: c.badge,
+                  builder: (_) => BlocProvider(
+                    create: (_) => RentalBookingCubit(context.read<MarketplaceRepository>(), context.read<AppPreferences>()),
+                    child: RentalBookingFlow(
+                      carId: c.id,
+                      carName: c.name,
+                      dayRate: c.pricePerDay.round(),
+                      carSvg: c.svgAsset,
+                      seats: c.seats,
+                      trans: c.transmission,
+                      fuel: c.fuel,
+                      badge: c.badge,
+                    ),
                   ),
                 ),
               ),
@@ -316,7 +361,7 @@ class _RentalScreenState extends State<RentalScreen> {
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: const [BoxShadow(color: Color(0x4D0F6E60), blurRadius: 18, offset: Offset(0, 8))],
                 ),
-                child: Text('Book Now', style: GoogleFonts.nunito(fontSize: 14.5, fontWeight: FontWeight.w900, color: Colors.white)),
+                child: Text(l10n.bookNow, style: GoogleFonts.nunito(fontSize: 14.5, fontWeight: FontWeight.w900, color: Colors.white)),
               ),
             ),
           ]),

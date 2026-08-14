@@ -1,6 +1,18 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
+import '../../../core/utils/app_preferences.dart';
+
+import '../../../data/models/rental_models.dart';
+import '../../../core/errors/api_exception.dart';
+import '../../../core/location/current_location.dart';
+import '../../../core/widgets/live_map_view.dart';
+import '../../../data/repositories/places_repository.dart';
+import '../../../l10n/app_localizations.dart';
+import '../cubit/rental_booking_cubit.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -32,37 +44,41 @@ TextStyle _int({double sz = 13, FontWeight w = FontWeight.w500, Color c = _ink80
     GoogleFonts.inter(fontSize: sz, fontWeight: w, color: c, height: h);
 
 // ─── Static data ──────────────────────────────────────────────────────────────
-const _stepTitles = ['Trip Details', 'Pickup & Delivery', 'Extras & Protection', 'Review & Confirm', 'Payment'];
-const _stepLabels = ['Trip', 'Location', 'Extras', 'Review', 'Pay'];
+List<String> _stepTitlesFor(AppLocalizations l10n) => [
+      l10n.stepTripDetails,
+      l10n.stepPickupDelivery,
+      l10n.stepExtrasProtection,
+      l10n.reviewConfirm,
+      l10n.sectionPayment,
+    ];
+
+List<String> _stepLabelsFor(AppLocalizations l10n) =>
+    [l10n.trip, l10n.stepLocation, l10n.stepExtras, l10n.stepReview, l10n.stepPay];
 
 const _rateMult = {'daily': 1.0, 'weekly': 0.85, 'monthly': 0.7};
 const _deliveryFee = 25;
 const _vatRate = 0.05;
 
-const _extrasDefs = [
-  (id: 'protection', name: 'Full Protection Plan', desc: 'Zero excess, drive worry-free', price: 30, icon: Icons.shield_outlined),
-  (id: 'driver', name: 'Extra Driver', desc: 'Add a second registered driver', price: 20, icon: Icons.person_add_alt_outlined),
-  (id: 'seat', name: 'Child Seat', desc: 'Safety seat for ages 1–4', price: 15, icon: Icons.event_seat_outlined),
-  (id: 'wifi', name: 'Portable Wi-Fi', desc: 'Stay connected on the road', price: 10, icon: Icons.wifi_rounded),
-];
+/// Icons for the extras catalog, keyed by the backend's `key` field.
+const _extraIcons = <String, IconData>{
+  'protection': Icons.shield_outlined,
+  'driver': Icons.person_add_alt_outlined,
+  'seat': Icons.event_seat_outlined,
+  'wifi': Icons.wifi_rounded,
+};
 
-const _branches = [
-  (id: 'corniche', name: 'Abu Dhabi Corniche Branch', addr: 'Corniche Road, Abu Dhabi', dist: '1.2 km'),
-  (id: 'yas', name: 'Yas Island Branch', addr: 'Yas Mall, Abu Dhabi', dist: '18 km'),
-  (id: 'airport', name: 'Abu Dhabi Airport Branch', addr: 'Terminal A Arrivals', dist: '27 km'),
-];
 
-const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-String _fmtDate(DateTime d) => '${d.day} ${_months[d.month - 1]}';
+String _fmtDate(DateTime d, AppLocalizations l10n) =>
+    DateFormat('d MMM', l10n.localeName).format(d);
 String _fmtTime(TimeOfDay t) =>
     '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-String _money(num n) => 'AED ${n.round()}';
+String _money(num n) => '₹${n.round()}';
 
 // ─── Flow screen ──────────────────────────────────────────────────────────────
 class RentalBookingFlow extends StatefulWidget {
   const RentalBookingFlow({
     super.key,
+    required this.carId,
     required this.carName,
     required this.dayRate,
     required this.carSvg,
@@ -72,6 +88,8 @@ class RentalBookingFlow extends StatefulWidget {
     this.badge,
   });
 
+  /// Backend car id — every quote/booking request is keyed on it.
+  final String carId;
   final String carName;
   final int dayRate;
   final String carSvg;
@@ -85,6 +103,39 @@ class RentalBookingFlow extends StatefulWidget {
 
 class _RentalBookingFlowState extends State<RentalBookingFlow>
     with SingleTickerProviderStateMixin {
+  AppLocalizations get l10n => AppLocalizations.of(context);
+
+  /// True while the GPS fix is being taken and reverse-geocoded.
+  bool _locating = false;
+
+  /// Fills the delivery address from the device's real position.
+  ///
+  /// This used to assign a hardcoded "Koramangala, Bengaluru" without reading
+  /// GPS at all, so every user was told they were in Bengaluru.
+  Future<void> _fillCurrentLocation() async {
+    setState(() => _locating = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final place = await resolveCurrentLocation(context.read<PlacesRepository>());
+      if (!mounted) return;
+      setState(() {
+        _addrCtrl.text = place.formattedAddress;
+        _locating = false;
+      });
+      messenger.showSnackBar(SnackBar(content: Text(l10n.locationCaptured)));
+    } on LocationUnavailable catch (e) {
+      if (!mounted) return;
+      setState(() => _locating = false);
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _locating = false);
+      messenger.showSnackBar(SnackBar(content: Text(friendlyErrorMessage(e))));
+    }
+  }
+  List<String> get stepTitles => _stepTitlesFor(l10n);
+  List<String> get stepLabels => _stepLabelsFor(l10n);
+
   int _step = 0;
 
   // step 1
@@ -96,13 +147,25 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
 
   // step 2
   String _fulfil = 'pickup';
-  String _branch = 'corniche';
-  final _addrCtrl = TextEditingController(text: 'Al Reem Island, Abu Dhabi');
+  final _addrCtrl = TextEditingController();
   final _bldgCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
 
-  // step 3
-  final Set<String> _extras = {};
+  RentalBookingCubit get _cubit => context.read<RentalBookingCubit>();
+
+  /// The signed-in user's own name; the profile is the only source the rental
+  /// flow has, and there is no stored phone to show alongside it.
+  String get _renterName =>
+      context.read<AppPreferences>().userName?.trim().isNotEmpty == true
+          ? context.read<AppPreferences>().userName!.trim()
+          : l10n.yourAccount;
+
+  String get _renterInitials {
+    final parts = _renterName.split(RegExp(r'\s+'));
+    final first = parts.first.isNotEmpty ? parts.first[0] : '?';
+    final last = parts.length > 1 && parts.last.isNotEmpty ? parts.last[0] : '';
+    return (first + last).toUpperCase();
+  }
 
   // step 4
   bool _agreed = false;
@@ -127,6 +190,32 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
 
   late final AnimationController _driveCtrl =
       AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..repeat();
+
+  @override
+  void initState() {
+    super.initState();
+    _cubit.loadOptions(widget.carId);
+  }
+
+  /// ISO-8601 instants the backend validates the trip window against.
+  String _isoAt(DateTime date, TimeOfDay time) =>
+      DateTime(date.year, date.month, date.day, time.hour, time.minute)
+          .toIso8601String();
+
+  /// The quote/booking payload shared by pricing and confirmation.
+  Map<String, dynamic> _tripRequest() => {
+        'carId': widget.carId,
+        'rentalType': _type,
+        'pickupAt': _isoAt(_pickupDate, _pickupTime),
+        'returnAt': _isoAt(_returnDate, _returnTime),
+        'fulfilment': _fulfil,
+        if (_fulfil == 'pickup') 'branchId': _cubit.state.selectedBranchId,
+        if (_fulfil == 'delivery') ...{
+          'deliveryAddress': _addrCtrl.text.trim(),
+          'deliveryBuilding': _bldgCtrl.text.trim(),
+          'deliveryNotes': _notesCtrl.text.trim(),
+        },
+      };
 
   @override
   void dispose() {
@@ -154,20 +243,28 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
   int get _rentalTotal => _dailyRate * _days;
   int get _delivery => _fulfil == 'delivery' ? _deliveryFee : 0;
   int get _extrasTotal {
+    final state = _cubit.state;
     var t = 0;
-    for (final e in _extrasDefs) {
-      if (_extras.contains(e.id)) t += e.price * _days;
+    for (final e in state.extras) {
+      if (state.selectedExtraKeys.contains(e.key)) t += (e.pricePerDay * _days).round();
     }
     return t;
   }
 
-  int get _subtotal => _rentalTotal + _delivery + _extrasTotal;
-  int get _promoDiscount => _promo == null ? 0 : (_subtotal * _promo!.pct / 100).round();
-  int get _vat => ((_subtotal - _promoDiscount) * _vatRate).round();
-  int get _total => _subtotal - _promoDiscount + _vat;
+  /// Server-side pricing once the Review step has quoted; the local getters
+  /// above mirror the same formula and cover the pre-quote steps.
+  RentalBreakdown? get _serverBreakdown => _cubit.state.quote?.breakdown;
+
+  int get _subtotal => _serverBreakdown?.subtotal ?? (_rentalTotal + _delivery + _extrasTotal);
+  int get _promoDiscount =>
+      _serverBreakdown?.promoDiscount ??
+      (_promo == null ? 0 : (_subtotal * _promo!.pct / 100).round());
+  int get _vat =>
+      _serverBreakdown?.vatAmount ?? ((_subtotal - _promoDiscount) * _vatRate).round();
+  int get _total => _serverBreakdown?.totalAmount ?? (_subtotal - _promoDiscount + _vat);
 
   String get _locationLabel => _fulfil == 'pickup'
-      ? '${_branches.firstWhere((b) => b.id == _branch).name} (Self Pickup)'
+      ? l10n.branchSelfPickup(_cubit.state.selectedBranch?.name ?? l10n.branch)
       : 'Delivery to ${_addrCtrl.text}';
 
   // ─── navigation ───────────────────────────────────────────────────────────
@@ -183,13 +280,15 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
   void _next() {
     if (_step == 3 && !_agreed) return;
     if (_step < 4) {
+      // Entering Review: re-price the trip server-side.
+      if (_step == 2) _cubit.refreshQuote(_tripRequest());
       setState(() => _step++);
     } else {
       _startPayment();
     }
   }
 
-  void _startPayment() {
+  Future<void> _startPayment() async {
     if (_pay == 'card') {
       final digits = _cardNumCtrl.text.replaceAll(RegExp(r'\D'), '');
       if (digits.length < 16 ||
@@ -197,21 +296,32 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
           _cardCvvCtrl.text.length < 3 ||
           _cardNameCtrl.text.trim().isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please complete all card details')),
+          SnackBar(content: Text(l10n.completeCardDetails)),
         );
         return;
       }
     }
     setState(() => _processing = true);
-    Future.delayed(const Duration(milliseconds: 1800), () {
-      if (!mounted) return;
-      final rng = math.Random();
-      setState(() {
-        _processing = false;
-        _success = true;
-        _code = 'ELK-${10000 + rng.nextInt(89999)}';
-        _qr = List.generate(36, (_) => rng.nextDouble() > 0.52);
-      });
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await _cubit.confirmBooking({
+      ..._tripRequest(),
+      'paymentMethod': _pay,
+      'agreedToTerms': _agreed,
+    });
+    if (!mounted) return;
+    setState(() => _processing = false);
+    if (!ok) {
+      messenger.showSnackBar(SnackBar(
+        content: Text(_cubit.state.bookingError ?? l10n.paymentFailed),
+      ));
+      return;
+    }
+    final rng = math.Random();
+    setState(() {
+      _success = true;
+      _code = _cubit.state.booking!.code;
+      // Decorative QR pattern for the ticket — the code above is the real one.
+      _qr = List.generate(36, (_) => rng.nextDouble() > 0.52);
     });
   }
 
@@ -268,7 +378,7 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
   // ─── header + road stepper ────────────────────────────────────────────────
   Widget _header() {
     final top = MediaQuery.of(context).padding.top;
-    final pct = _step / (_stepTitles.length - 1);
+    final pct = _step / (stepTitles.length - 1);
 
     return Container(
       padding: EdgeInsets.fromLTRB(20, top + 6, 20, 26),
@@ -297,10 +407,10 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('STEP ${_step + 1} OF ${_stepTitles.length}',
+              Text('STEP ${_step + 1} OF ${stepTitles.length}',
                   style: _int(sz: 11, w: FontWeight.w600, c: _mint300).copyWith(letterSpacing: 0.4)),
               const SizedBox(height: 2),
-              Text(_stepTitles[_step], style: _pop(sz: 20, w: FontWeight.w700, c: Colors.white, sp: -0.2)),
+              Text(stepTitles[_step], style: _pop(sz: 20, w: FontWeight.w700, c: Colors.white, sp: -0.2)),
             ]),
           ),
           Text.rich(TextSpan(children: [
@@ -342,12 +452,12 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
         }),
         const SizedBox(height: 6),
         Row(
-          children: List.generate(_stepLabels.length, (i) {
+          children: List.generate(stepLabels.length, (i) {
             final on = i <= _step;
             return Expanded(
               child: Text(
-                _stepLabels[i],
-                textAlign: i == 0 ? TextAlign.left : (i == _stepLabels.length - 1 ? TextAlign.right : TextAlign.center),
+                stepLabels[i],
+                textAlign: i == 0 ? TextAlign.left : (i == stepLabels.length - 1 ? TextAlign.right : TextAlign.center),
                 style: _int(sz: 10.5, w: FontWeight.w600, c: on ? Colors.white : Colors.white.withValues(alpha: 0.5)),
               ),
             );
@@ -361,7 +471,7 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
   Widget _footer() {
     final bottom = MediaQuery.of(context).padding.bottom;
     final disabled = _step == 3 && !_agreed;
-    final label = _step == 4 ? 'Confirm & Pay ${_money(_total)}' : 'Continue';
+    final label = _step == 4 ? l10n.confirmAndPayAmount(_money(_total)) : l10n.commonContinue;
 
     return Container(
       padding: EdgeInsets.fromLTRB(18, 13, 18, bottom + 16),
@@ -375,17 +485,17 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
             const Icon(Icons.lock_outline_rounded, size: 12, color: _teal600),
             const SizedBox(width: 6),
-            Text('Secured by ELK Pay · 256-bit encryption', style: _int(sz: 11, c: _slate500)),
+            Text(l10n.securedByElkPay, style: _int(sz: 11, c: _slate500)),
           ]),
           const SizedBox(height: 11),
         ],
         Row(children: [
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Total so far', style: _int(sz: 11, c: _slate500)),
+              Text(l10n.totalSoFar, style: _int(sz: 11, c: _slate500)),
               Text.rich(TextSpan(children: [
                 TextSpan(text: _money(_total), style: _pop(sz: 19, w: FontWeight.w800)),
-                TextSpan(text: ' · $_days ${_days == 1 ? 'day' : 'days'}', style: _int(sz: 12, w: FontWeight.w600, c: _slate500)),
+                TextSpan(text: ' · ${l10n.daysCount(_days)}', style: _int(sz: 12, w: FontWeight.w600, c: _slate500)),
               ])),
             ]),
           ),
@@ -481,20 +591,20 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
         unit: '/day',
       ),
       const SizedBox(height: 18),
-      _sectionHead('When do you need it?', 'Pick your rental plan and travel dates'),
+      _sectionHead(l10n.whenDoYouNeedIt, l10n.pickPlanAndDates),
       const SizedBox(height: 14),
       Row(children: [
-        _pill('Daily', 'daily'),
+        _pill(l10n.rateDaily, 'daily'),
         const SizedBox(width: 8),
-        _pill('Weekly · 15% off', 'weekly'),
+        _pill(l10n.rateWeekly, 'weekly'),
         const SizedBox(width: 8),
-        _pill('Monthly · 30% off', 'monthly'),
+        _pill(l10n.rateMonthly, 'monthly'),
       ]),
       const SizedBox(height: 14),
       _dateCard(
         icon: Icons.calendar_today_outlined,
-        label: 'Pick-up date & time',
-        sub: 'When your rental begins',
+        label: l10n.pickupDateTime,
+        sub: l10n.whenRentalBegins,
         date: _pickupDate,
         time: _pickupTime,
         onDate: (d) => setState(() {
@@ -506,8 +616,8 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
       const SizedBox(height: 12),
       _dateCard(
         icon: Icons.event_repeat_outlined,
-        label: 'Return date & time',
-        sub: 'When your rental ends',
+        label: l10n.returnDateTime,
+        sub: l10n.whenRentalEnds,
         date: _returnDate,
         time: _returnTime,
         firstDate: _pickupDate,
@@ -528,15 +638,15 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
           const SizedBox(width: 9),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Rental length', style: _int(sz: 12.5, c: Colors.white.withValues(alpha: 0.7))),
-              Text('$_days ${_days == 1 ? 'Day' : 'Days'}', style: _pop(sz: 14.5, c: Colors.white)),
+              Text(l10n.rentalLength, style: _int(sz: 12.5, c: Colors.white.withValues(alpha: 0.7))),
+              Text(l10n.daysCount(_days), style: _pop(sz: 14.5, c: Colors.white)),
             ]),
           ),
           Text(_money(_rentalTotal), style: _pop(sz: 16, c: _gold500)),
         ]),
       ),
       const SizedBox(height: 12),
-      _hint('Rentals are billed in full days. Return the car late by more than 59 minutes and an extra day applies.'),
+      _hint(l10n.rentalBillingNote),
     ]);
   }
 
@@ -596,7 +706,7 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
         Row(children: [
           Expanded(
             child: _fieldBox(
-              text: _fmtDate(date),
+              text: _fmtDate(date, l10n),
               onTap: () async {
                 final d = await showDatePicker(
                   context: context,
@@ -658,58 +768,32 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
         unit: 'rental',
       ),
       const SizedBox(height: 18),
-      _sectionHead('How would you like to get your car?', 'Collect it yourself or have it delivered to you'),
+      _sectionHead(l10n.howGetYourCar, l10n.collectOrDelivered),
       const SizedBox(height: 14),
       Row(children: [
-        Expanded(child: _fulfilCard('pickup', Icons.location_city_rounded, 'Self Pickup', 'Collect from an ELK branch', 'Free', true)),
+        Expanded(child: _fulfilCard('pickup', Icons.location_city_rounded, l10n.selfPickup, l10n.collectFromBranch, l10n.free, true)),
         const SizedBox(width: 11),
-        Expanded(child: _fulfilCard('delivery', Icons.local_shipping_outlined, 'Car Delivery', 'We bring it to your address', '+AED 25', false)),
+        Expanded(child: _fulfilCard('delivery', Icons.local_shipping_outlined, l10n.carDelivery, l10n.weBringIt, '+₹25', false)),
       ]),
       const SizedBox(height: 16),
       if (_fulfil == 'pickup') ...[
-        Text('Choose a branch', style: _pop(sz: 15)),
+        Text(l10n.chooseBranch, style: _pop(sz: 15)),
         const SizedBox(height: 10),
-        for (final b in _branches) ...[
+        for (final b in _cubit.state.branches) ...[
           _branchCard(b),
           const SizedBox(height: 9),
         ],
         const SizedBox(height: 3),
-        // map preview
-        Container(
-          height: 96,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _slate300, width: 1.5),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Stack(children: [
-            Positioned.fill(child: CustomPaint(painter: _MiniMapPainter())),
-            const Center(child: Icon(Icons.location_on, size: 24, color: _teal700)),
-            Positioned(
-              left: 8, bottom: 8,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.88),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text('Map preview · tap to open directions', style: _int(sz: 10.5, w: FontWeight.w600, c: _forest900)),
-              ),
-            ),
-          ]),
-        ),
+        ?_branchMap(),
       ] else ...[
-        _formField('Delivery address', _addrCtrl, hint: 'e.g. Al Reem Island, Marina Sunset Bay'),
+        _formField(l10n.deliveryAddress, _addrCtrl, hint: l10n.deliveryAddressHint),
         const SizedBox(height: 11),
-        _formField('Building / Villa No.', _bldgCtrl, hint: 'Tower B, Apt 1204'),
+        _formField(l10n.buildingVillaNo, _bldgCtrl, hint: 'Tower B, Apt 1204'),
         const SizedBox(height: 11),
-        _formField('Directions for driver (optional)', _notesCtrl, hint: 'Gate code, landmark, parking notes…', lines: 2),
+        _formField(l10n.driverDirections, _notesCtrl, hint: l10n.driverDirectionsHint, lines: 2),
         const SizedBox(height: 11),
         GestureDetector(
-          onTap: () {
-            setState(() => _addrCtrl.text = 'Current Location — Al Reem Island, Abu Dhabi');
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location captured')));
-          },
+          onTap: _locating ? null : _fillCurrentLocation,
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 10),
             decoration: BoxDecoration(
@@ -718,14 +802,24 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
               borderRadius: BorderRadius.circular(11),
             ),
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              const Icon(Icons.my_location_rounded, size: 15, color: _teal700),
+              if (_locating)
+                const SizedBox(
+                  width: 15,
+                  height: 15,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: _teal700),
+                )
+              else
+                const Icon(Icons.my_location_rounded, size: 15, color: _teal700),
               const SizedBox(width: 7),
-              Text('Use my current location', style: _int(sz: 12.5, w: FontWeight.w700, c: _teal700)),
+              Text(
+                _locating ? l10n.locating : l10n.useCurrentLocation,
+                style: _int(sz: 12.5, w: FontWeight.w700, c: _teal700),
+              ),
             ]),
           ),
         ),
         const SizedBox(height: 12),
-        _hint('Delivery fee AED 25 · car arrives within 2 hours of your pick-up time.'),
+        _hint(l10n.deliveryFeeNote),
       ],
     ]);
   }
@@ -780,10 +874,49 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
     );
   }
 
-  Widget _branchCard(({String id, String name, String addr, String dist}) b) {
-    final on = _branch == b.id;
+  /// Every branch on one map, with the chosen one framed.
+  ///
+  /// Null when no branch carries coordinates — an empty map is worse than no
+  /// map, and this used to be a painted decoration that showed the same three
+  /// invented streets whichever branch you picked.
+  Widget? _branchMap() {
+    final selected = _cubit.state.selectedBranch;
+    final branches = selected != null ? [selected] : _cubit.state.branches;
+    final points = [
+      for (final b in branches)
+        if (b.lat != null && b.lng != null)
+          MapPoint(lat: b.lat!, lng: b.lng!, kind: MapPointKind.place, label: b.name),
+    ];
+    if (points.isEmpty) return null;
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _slate300, width: 1.5),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(children: [
+        // Inside a scrolling form, so panning is off.
+        LiveMapView(points: points, height: 96, interactive: false),
+        Positioned(
+          left: 8, bottom: 8,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.88),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(l10n.mapPreviewHint, style: _int(sz: 10.5, w: FontWeight.w600, c: _forest900)),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _branchCard(RentalBranchModel b) {
+    final on = _cubit.state.selectedBranchId == b.id;
     return GestureDetector(
-      onTap: () => setState(() => _branch = b.id),
+      onTap: () => _cubit.selectBranch(b.id),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
         decoration: BoxDecoration(
@@ -818,10 +951,10 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(b.name, style: _int(sz: 13, w: FontWeight.w700)),
               const SizedBox(height: 1),
-              Text(b.addr, style: _int(sz: 11.3, c: _slate500)),
+              Text(b.address, style: _int(sz: 11.3, c: _slate500)),
             ]),
           ),
-          Text(b.dist, style: _int(sz: 11.5, w: FontWeight.w700, c: _slate500)),
+          Text(b.distance, style: _int(sz: 11.5, w: FontWeight.w700, c: _slate500)),
         ]),
       ),
     );
@@ -865,19 +998,19 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
         unit: 'rental',
       ),
       const SizedBox(height: 18),
-      _sectionHead('Enhance your trip', 'Optional add-ons — pick any that suit your journey'),
+      _sectionHead(l10n.enhanceYourTrip, l10n.optionalAddOns),
       const SizedBox(height: 14),
-      for (final e in _extrasDefs) ...[
+      for (final e in _cubit.state.extras) ...[
         _extraCard(e),
         const SizedBox(height: 10),
       ],
     ]);
   }
 
-  Widget _extraCard(({String id, String name, String desc, int price, IconData icon}) e) {
-    final on = _extras.contains(e.id);
+  Widget _extraCard(RentalExtraModel e) {
+    final on = _cubit.state.selectedExtraKeys.contains(e.key);
     return GestureDetector(
-      onTap: () => setState(() => on ? _extras.remove(e.id) : _extras.add(e.id)),
+      onTap: () => _cubit.toggleExtra(e.key),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
         decoration: BoxDecoration(
@@ -893,18 +1026,18 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
               color: on ? _teal600 : _sand100,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(e.icon, size: 18, color: on ? Colors.white : _teal600),
+            child: Icon(_extraIcons[e.key] ?? Icons.add_circle_outline, size: 18, color: on ? Colors.white : _teal600),
           ),
           const SizedBox(width: 11),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(e.name, style: _int(sz: 13.5, w: FontWeight.w700)),
               const SizedBox(height: 1),
-              Text(e.desc, style: _int(sz: 11.3, c: _slate500)),
+              Text(e.description, style: _int(sz: 11.3, c: _slate500)),
             ]),
           ),
           Text.rich(TextSpan(children: [
-            TextSpan(text: '+AED ${e.price}', style: _int(sz: 12.5, w: FontWeight.w700)),
+            TextSpan(text: '+₹${e.pricePerDay}', style: _int(sz: 12.5, w: FontWeight.w700)),
             TextSpan(text: '/day', style: _int(sz: 12.5, c: _slate500)),
           ])),
           const SizedBox(width: 10),
@@ -926,7 +1059,7 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
   // ═══ STEP 4 — Review ══════════════════════════════════════════════════════
   Widget _stepReview() {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      _sectionHead('Review your booking', 'Double-check everything before you pay'),
+      _sectionHead(l10n.reviewYourBooking, l10n.doubleCheckBeforePay),
       const SizedBox(height: 14),
       // renter card
       Container(
@@ -939,17 +1072,18 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
               gradient: LinearGradient(colors: [_teal500, _forest900]),
               shape: BoxShape.circle,
             ),
-            child: Center(child: Text('AA', style: _pop(sz: 14, c: Colors.white))),
+            child: Center(child: Text(_renterInitials, style: _pop(sz: 14, c: Colors.white))),
           ),
           const SizedBox(width: 11),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Ahmed Al Mazrouei', style: _int(sz: 13.5, w: FontWeight.w700)),
+              // The signed-in user, not a stand-in — this card is the renter.
+              Text(_renterName, style: _int(sz: 13.5, w: FontWeight.w700)),
               const SizedBox(height: 2),
               Row(children: [
-                const Icon(Icons.phone_outlined, size: 12, color: _slate500),
+                const Icon(Icons.verified_user_outlined, size: 12, color: _slate500),
                 const SizedBox(width: 5),
-                Text('+971 50 123 4567', style: _int(sz: 11.5, c: _slate500)),
+                Text(l10n.bookingAsYourself, style: _int(sz: 11.5, c: _slate500)),
               ]),
             ]),
           ),
@@ -959,7 +1093,7 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
             child: Row(children: [
               const Icon(Icons.check_rounded, size: 10, color: _teal700),
               const SizedBox(width: 4),
-              Text('Verified', style: _int(sz: 10.5, w: FontWeight.w700, c: _teal700)),
+              Text(l10n.verified, style: _int(sz: 10.5, w: FontWeight.w700, c: _teal700)),
             ]),
           ),
         ]),
@@ -970,10 +1104,10 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
         decoration: _cardDeco(),
         child: Column(children: [
-          _summaryRow(Icons.calendar_today_outlined, 'Trip dates',
-              '${_fmtDate(_pickupDate)} ${_fmtTime(_pickupTime)} → ${_fmtDate(_returnDate)} ${_fmtTime(_returnTime)}'),
+          _summaryRow(Icons.calendar_today_outlined, l10n.tripDates,
+              '${_fmtDate(_pickupDate, l10n)} ${_fmtTime(_pickupTime)} → ${_fmtDate(_returnDate, l10n)} ${_fmtTime(_returnTime)}'),
           const Divider(color: _sand100, height: 1),
-          _summaryRow(Icons.location_on_outlined, 'Location', _locationLabel),
+          _summaryRow(Icons.location_on_outlined, l10n.stepLocation, _locationLabel),
         ]),
       ),
       const SizedBox(height: 12),
@@ -982,14 +1116,15 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
         padding: const EdgeInsets.all(16),
         decoration: _cardDeco(),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Price breakdown', style: _pop(sz: 14.5)),
+          Text(l10n.priceBreakdown, style: _pop(sz: 14.5)),
           const SizedBox(height: 9),
           _bRow('${_type[0].toUpperCase()}${_type.substring(1)} rate · $_days × ${_money(_dailyRate)}', _money(_rentalTotal)),
-          if (_delivery > 0) _bRow('Delivery fee', _money(_delivery)),
-          for (final e in _extrasDefs)
-            if (_extras.contains(e.id)) _bRow(e.name, _money(e.price * _days)),
+          if (_delivery > 0) _bRow(l10n.deliveryFee, _money(_delivery)),
+          for (final e in _cubit.state.extras)
+            if (_cubit.state.selectedExtraKeys.contains(e.key))
+              _bRow(e.name, _money(e.pricePerDay * _days)),
           if (_promoDiscount > 0) _bRow('Promo ${_promo!.code} discount', '-${_money(_promoDiscount)}', discount: true),
-          _bRow('VAT (5%)', _money(_vat)),
+          _bRow(l10n.gstFivePercent, _money(_vat)),
           const SizedBox(height: 13),
           // promo
           Container(
@@ -1013,7 +1148,7 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
                     enabledBorder: InputBorder.none,
                     focusedBorder: InputBorder.none,
                     filled: false,
-                    hintText: 'Promo code — try ELK10',
+                    hintText: l10n.promoCodeHint,
                     hintStyle: _int(sz: 12.5, w: FontWeight.w500, c: _slate400),
                   ),
                 ),
@@ -1023,7 +1158,7 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
                   decoration: BoxDecoration(color: _ink950, borderRadius: BorderRadius.circular(8)),
-                  child: Text('Apply', style: _int(sz: 12, w: FontWeight.w700, c: Colors.white)),
+                  child: Text(l10n.commonApply, style: _int(sz: 12, w: FontWeight.w700, c: Colors.white)),
                 ),
               ),
             ]),
@@ -1034,7 +1169,7 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
           ],
           const Padding(padding: EdgeInsets.symmetric(vertical: 11), child: Divider(color: _sand100, height: 1)),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text('Total (incl. 5% VAT)', style: _pop(sz: 15.5, w: FontWeight.w800)),
+            Text(l10n.totalInclGst, style: _pop(sz: 15.5, w: FontWeight.w800)),
             Text(_money(_total), style: _pop(sz: 15.5, w: FontWeight.w800, c: _teal700)),
           ]),
         ]),
@@ -1057,9 +1192,9 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
           const SizedBox(width: 10),
           Expanded(
             child: Text.rich(TextSpan(children: [
-              TextSpan(text: 'I agree to the ', style: _int(sz: 12, c: _slate600)),
+              TextSpan(text: l10n.iAgreeToThe, style: _int(sz: 12, c: _slate600)),
               TextSpan(
-                  text: 'Rental Terms & Conditions',
+                  text: l10n.rentalTerms,
                   style: _int(sz: 12, w: FontWeight.w600, c: _teal700)
                       .copyWith(decoration: TextDecoration.underline)),
               TextSpan(text: ' and Cancellation Policy', style: _int(sz: 12, c: _slate600)),
@@ -1102,19 +1237,31 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
     );
   }
 
-  void _applyPromo() {
+  /// Validates the code by pricing the trip with it server-side, so the
+  /// discount shown always matches what the booking will charge.
+  Future<void> _applyPromo() async {
     final v = _promoCtrl.text.trim().toUpperCase();
-    setState(() {
-      if (v == 'ELK10') {
-        _promo = (code: 'ELK10', pct: 10);
-        _promoMsg = 'Promo applied — 10% off your booking';
-        _promoOk = true;
-      } else if (v.isEmpty) {
-        _promoMsg = 'Enter a promo code first';
+    if (v.isEmpty) {
+      setState(() {
+        _promoMsg = l10n.enterPromoFirst;
         _promoOk = false;
+      });
+      return;
+    }
+    final error = await _cubit.applyPromo(v, _tripRequest());
+    if (!mounted) return;
+    final breakdown = _cubit.state.quote?.breakdown;
+    setState(() {
+      if (error == null && breakdown?.promoCode != null) {
+        final pct = breakdown!.subtotal == 0
+            ? 0
+            : (breakdown.promoDiscount * 100 / breakdown.subtotal).round();
+        _promo = (code: breakdown.promoCode!, pct: pct);
+        _promoMsg = 'Promo applied — $pct% off your booking';
+        _promoOk = true;
       } else {
         _promo = null;
-        _promoMsg = "That code isn't valid — try ELK10";
+        _promoMsg = error ?? l10n.promoNotValid;
         _promoOk = false;
       }
     });
@@ -1122,14 +1269,14 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
 
   // ═══ STEP 5 — Payment ═════════════════════════════════════════════════════
   Widget _stepPayment() {
-    final cashLabel = _fulfil == 'pickup' ? 'Cash on Pickup' : 'Cash on Delivery';
+    final cashLabel = _fulfil == 'pickup' ? l10n.cashOnPickup : l10n.payCashOnDelivery;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      _sectionHead('Payment', "Choose how you'd like to pay"),
+      _sectionHead(l10n.sectionPayment, l10n.chooseHowToPay),
       const SizedBox(height: 14),
       Row(children: [
-        _payMethod('card', Icons.credit_card_rounded, 'Card'),
+        _payMethod('card', Icons.credit_card_rounded, l10n.cardLabel),
         const SizedBox(width: 9),
-        _payMethod('wallet', Icons.account_balance_wallet_outlined, 'Wallet'),
+        _payMethod('wallet', Icons.account_balance_wallet_outlined, l10n.navWallet),
         const SizedBox(width: 9),
         _payMethod('cash', Icons.payments_outlined, cashLabel),
       ]),
@@ -1137,15 +1284,15 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
       if (_pay == 'card') ...[
         _cardVisual(),
         const SizedBox(height: 14),
-        _formField('Card number', _cardNumCtrl, hint: '1234 5678 9012 3456'),
+        _formField(l10n.cardNumber, _cardNumCtrl, hint: '1234 5678 9012 3456'),
         const SizedBox(height: 11),
         Row(children: [
-          Expanded(child: _formField('Expiry', _cardExpCtrl, hint: 'MM/YY')),
+          Expanded(child: _formField(l10n.cardExpiry, _cardExpCtrl, hint: 'MM/YY')),
           const SizedBox(width: 10),
-          Expanded(child: _formField('CVV', _cardCvvCtrl, hint: '•••')),
+          Expanded(child: _formField(l10n.cardCvv, _cardCvvCtrl, hint: '•••')),
         ]),
         const SizedBox(height: 11),
-        _formField('Name on card', _cardNameCtrl, hint: 'As shown on card'),
+        _formField(l10n.nameOnCard, _cardNameCtrl, hint: l10n.cardAsShown),
         const SizedBox(height: 12),
         GestureDetector(
           onTap: () => setState(() => _saveCard = !_saveCard),
@@ -1162,7 +1309,7 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
               child: _saveCard ? const Icon(Icons.check, size: 13, color: Colors.white) : null,
             ),
             const SizedBox(width: 10),
-            Expanded(child: Text('Save this card for faster checkout next time', style: _int(sz: 12, c: _slate600))),
+            Expanded(child: Text(l10n.saveCardNextTime, style: _int(sz: 12, c: _slate600))),
           ]),
         ),
       ] else if (_pay == 'wallet')
@@ -1177,10 +1324,10 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
               child: const Icon(Icons.account_balance_wallet_outlined, size: 26, color: _teal600),
             ),
             const SizedBox(height: 14),
-            Text('Pay with your digital wallet', style: _pop(sz: 14.5)),
+            Text(l10n.payWithDigitalWallet, style: _pop(sz: 14.5)),
             const SizedBox(height: 7),
             Text(
-              "You'll be redirected to complete this payment securely, then returned to ELK Business Hub.",
+              l10n.walletRedirectNote,
               textAlign: TextAlign.center,
               style: _int(sz: 12, c: _slate500, h: 1.5),
             ),
@@ -1191,8 +1338,8 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
           padding: const EdgeInsets.all(13),
           decoration: BoxDecoration(color: _sand100, borderRadius: BorderRadius.circular(11)),
           child: _hint(_fulfil == 'pickup'
-              ? 'Pay the full amount in cash when you collect the car at the branch counter.'
-              : 'Pay the full amount in cash to our driver when the car is delivered.'),
+              ? l10n.cashAtBranchNote
+              : l10n.cashToDriverNote),
         ),
     ]);
   }
@@ -1230,7 +1377,7 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
   Widget _cardVisual() {
     final digits = _cardNumCtrl.text.replaceAll(RegExp(r'\D'), '');
     final masked = digits.padRight(16, '•').replaceAllMapped(RegExp(r'.{4}'), (m) => '${m[0]} ').trim();
-    final name = _cardNameCtrl.text.trim().isEmpty ? 'YOUR NAME' : _cardNameCtrl.text.toUpperCase();
+    final name = _cardNameCtrl.text.trim().isEmpty ? l10n.cardYourName : _cardNameCtrl.text.toUpperCase();
     final exp = _cardExpCtrl.text.isEmpty ? 'MM/YY' : _cardExpCtrl.text;
 
     return Container(
@@ -1259,12 +1406,12 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
         const SizedBox(height: 16),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('CARD HOLDER', style: _int(sz: 8.5, c: Colors.white.withValues(alpha: 0.55)).copyWith(letterSpacing: 0.5)),
+            Text(l10n.cardHolder, style: _int(sz: 8.5, c: Colors.white.withValues(alpha: 0.55)).copyWith(letterSpacing: 0.5)),
             const SizedBox(height: 3),
             Text(name, style: _int(sz: 12.5, w: FontWeight.w700, c: Colors.white).copyWith(letterSpacing: 0.5)),
           ]),
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('EXPIRES', style: _int(sz: 8.5, c: Colors.white.withValues(alpha: 0.55)).copyWith(letterSpacing: 0.5)),
+            Text(l10n.cardExpires, style: _int(sz: 8.5, c: Colors.white.withValues(alpha: 0.55)).copyWith(letterSpacing: 0.5)),
             const SizedBox(height: 3),
             Text(exp, style: _int(sz: 12.5, w: FontWeight.w700, c: Colors.white).copyWith(letterSpacing: 0.5)),
           ]),
@@ -1300,9 +1447,9 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
             ),
           ),
           const SizedBox(height: 26),
-          Text('Processing your payment…', style: _pop(sz: 15.5)),
+          Text(l10n.processingYourPayment, style: _pop(sz: 15.5)),
           const SizedBox(height: 6),
-          Text("Please don't close this screen", style: _int(sz: 12.5, c: _slate500)),
+          Text(l10n.dontCloseScreen, style: _int(sz: 12.5, c: _slate500)),
         ]),
       ),
     );
@@ -1332,7 +1479,7 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
                 ),
               ),
               const SizedBox(height: 18),
-              Text('Booking Confirmed!', style: _pop(sz: 21, w: FontWeight.w800)),
+              Text(l10n.bookingConfirmedBang, style: _pop(sz: 21, w: FontWeight.w800)),
               const SizedBox(height: 6),
               Text('Your ${widget.carName} is booked and ready to go.',
                   textAlign: TextAlign.center, style: _int(sz: 13, c: _slate600)),
@@ -1348,18 +1495,18 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 decoration: _cardDeco(),
                 child: Column(children: [
-                  _summaryRow(Icons.calendar_today_outlined, 'Trip dates',
-                      '${_fmtDate(_pickupDate)} → ${_fmtDate(_returnDate)}'),
+                  _summaryRow(Icons.calendar_today_outlined, l10n.tripDates,
+                      '${_fmtDate(_pickupDate, l10n)} → ${_fmtDate(_returnDate, l10n)}'),
                   const Divider(color: _sand100, height: 1),
-                  _summaryRow(Icons.location_on_outlined, 'Location',
+                  _summaryRow(Icons.location_on_outlined, l10n.stepLocation,
                       _fulfil == 'pickup'
-                          ? '${_branches.firstWhere((b) => b.id == _branch).name} (Self Pickup)'
-                          : 'Delivered to your address'),
+                          ? l10n.branchSelfPickup(_cubit.state.selectedBranch?.name ?? l10n.branch)
+                          : l10n.deliveredToAddress),
                   const Divider(color: _sand100, height: 1),
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                      Text('Amount paid', style: _pop(sz: 14.5, w: FontWeight.w800)),
+                      Text(l10n.amountPaid, style: _pop(sz: 14.5, w: FontWeight.w800)),
                       Text(_money(_total), style: _pop(sz: 14.5, w: FontWeight.w800, c: _teal700)),
                     ]),
                   ),
@@ -1391,13 +1538,13 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
                 ),
               ),
               const SizedBox(height: 8),
-              Text('Show this at pickup', style: _int(sz: 11, w: FontWeight.w600, c: _slate500)),
+              Text(l10n.showThisAtPickup, style: _int(sz: 11, w: FontWeight.w600, c: _slate500)),
               const SizedBox(height: 22),
               Row(children: [
                 Expanded(
                   child: GestureDetector(
                     onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Receipt sent to your email')),
+                      SnackBar(content: Text(l10n.receiptSentToEmail)),
                     ),
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 14),
@@ -1406,7 +1553,7 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
                         border: Border.all(color: _slate200, width: 1.8),
                         borderRadius: BorderRadius.circular(15),
                       ),
-                      child: Center(child: Text('View E-Receipt', style: _pop(sz: 13.5))),
+                      child: Center(child: Text(l10n.viewEReceipt, style: _pop(sz: 13.5))),
                     ),
                   ),
                 ),
@@ -1421,7 +1568,7 @@ class _RentalBookingFlowState extends State<RentalBookingFlow>
                         borderRadius: BorderRadius.circular(15),
                         boxShadow: const [BoxShadow(color: Color(0x52238055), blurRadius: 22, offset: Offset(0, 10))],
                       ),
-                      child: Center(child: Text('Done', style: _pop(sz: 13.5, c: Colors.white))),
+                      child: Center(child: Text(l10n.commonDone, style: _pop(sz: 13.5, c: Colors.white))),
                     ),
                   ),
                 ),
@@ -1461,34 +1608,3 @@ class _RoadTrackPainter extends CustomPainter {
 }
 
 /// Small decorative map preview for the branch picker.
-class _MiniMapPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFFDCEBE1));
-
-    final r1 = Paint()
-      ..color = const Color(0xFFB7D6C4)
-      ..strokeWidth = 10
-      ..style = PaintingStyle.stroke;
-    final p1 = Path()
-      ..moveTo(0, h * 0.64)
-      ..cubicTo(w * 0.18, h * 0.36, w * 0.3, h * 0.82, w * 0.47, h * 0.5)
-      ..cubicTo(w * 0.65, h * 0.18, w * 0.76, h * 0.68, w, h * 0.4);
-    canvas.drawPath(p1, r1);
-
-    final r2 = Paint()
-      ..color = const Color(0xFFC9E0D2)
-      ..strokeWidth = 7
-      ..style = PaintingStyle.stroke;
-    final p2 = Path()
-      ..moveTo(w * 0.06, h * 0.18)
-      ..cubicTo(w * 0.26, h * 0.5, w * 0.41, h * 0.05, w * 0.59, h * 0.32)
-      ..cubicTo(w * 0.74, h * 0.55, w * 0.88, h * 0.14, w, h * 0.27);
-    canvas.drawPath(p2, r2);
-  }
-
-  @override
-  bool shouldRepaint(_) => false;
-}

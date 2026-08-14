@@ -2,14 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../push/push_service.dart';
+import '../../data/repositories/marketplace_repository.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../data/repositories/booking_repository.dart';
-import '../../data/repositories/elkstay_repository.dart';
 import '../../features/elkstay/shell/elkstay_shell.dart';
+import '../../features/elkrep/cubit/elkrep_cubit.dart';
 import '../../features/elkrep/elkrep_shell.dart';
+import '../../features/elkclean/cubit/elkclean_cubit.dart';
 import '../../features/elkclean/elkclean_shell.dart';
+import '../../data/repositories/locations_repository.dart';
+import '../../features/seller/cubit/seller_listings_cubit.dart';
+import '../../features/seller/cubit/seller_orders_cubit.dart';
 import '../../features/seller/seller_shell.dart';
+import '../../features/addresses/cubit/addresses_cubit.dart';
+import '../../features/addresses/view/addresses_screen.dart';
 import '../../features/best_sellers/view/best_sellers_screen.dart';
+import '../../features/bookings/cubit/my_bookings_cubit.dart';
 import '../../features/bookings/view/my_bookings_screen.dart';
 import '../../features/elkstay/stay_detail/cubit/stay_detail_cubit.dart';
 import '../../features/elkstay/stay_detail/view/stay_detail_screen.dart';
@@ -22,9 +31,7 @@ import '../../data/repositories/payment_repository.dart';
 import '../../data/repositories/porter_repository.dart';
 import '../../data/repositories/profile_repository.dart';
 import '../../data/repositories/provider_repository.dart';
-import '../../data/repositories/rental_repository.dart';
 import '../../data/repositories/review_repository.dart';
-import '../../data/repositories/ride_repository.dart';
 import '../../data/repositories/services_repository.dart';
 import '../../data/repositories/tracking_repository.dart';
 import '../../data/repositories/wallet_repository.dart';
@@ -67,24 +74,31 @@ import '../../features/service_detail/view/service_detail_screen.dart';
 import '../../features/services/view/services_screen.dart';
 import '../../features/splash/cubit/splash_cubit.dart';
 import '../../features/splash/view/splash_screen.dart';
-import '../../features/taxi/cubit/taxi_cubit.dart';
-import '../../features/taxi/view/taxi_screen.dart';
+import '../../features/taxi/cubit/ride_booking_cubit.dart';
+import '../../features/taxi/view/ride_booking_flow.dart';
+import '../../data/repositories/ride_repository.dart';
 import '../../features/tracking/cubit/tracking_cubit.dart';
 import '../../features/tracking/view/tracking_screen.dart';
 import '../../features/wallet/cubit/wallet_cubit.dart';
 import '../../features/wallet/view/wallet_screen.dart';
+import '../api/chat_socket.dart';
+import '../api/token_storage.dart';
+import '../l10n/locale_cubit.dart';
 import '../utils/app_preferences.dart';
 import '../widgets/main_shell.dart';
 import 'app_routes.dart';
 
-/// The placeholder order/booking id used for screens whose dummy repositories
-/// return a fixed payload regardless of the id passed in.
-const _demoOrderId = 'ELK-2025-04921';
-const _demoBookingId = 'b_1001';
 
 // Root navigator key ensures routes pushed over the StatefulShellRoute use
 // the top-level navigator and aren't trapped inside a branch's sub-navigator.
 final _rootKey = GlobalKey<NavigatorState>();
+
+/// Sends the app to the login screen. Called from outside the widget tree by
+/// the API layer when the session can no longer be refreshed.
+void redirectToLogin() {
+  final context = _rootKey.currentContext;
+  if (context != null) context.go(AppRoutes.login);
+}
 
 GoRouter buildAppRouter() {
   return GoRouter(
@@ -94,7 +108,10 @@ GoRouter buildAppRouter() {
       GoRoute(
         path: AppRoutes.splash,
         builder: (context, state) => BlocProvider(
-          create: (context) => SplashCubit(context.read<AppPreferences>()),
+          create: (context) => SplashCubit(
+            context.read<AppPreferences>(),
+            context.read<AuthRepository>(),
+          ),
           child: SplashScreen(
             onResolved: (destination) {
               switch (destination) {
@@ -124,6 +141,7 @@ GoRouter buildAppRouter() {
           create: (context) => AuthBloc(
             context.read<AuthRepository>(),
             context.read<AppPreferences>(),
+            push: context.read<PushService>(),
           ),
           child: AuthScreen(
             onAuthenticated: () => context.go(AppRoutes.home),
@@ -136,6 +154,7 @@ GoRouter buildAppRouter() {
           create: (context) => LanguageCubit(
             context.read<LanguageRepository>(),
             context.read<AppPreferences>(),
+            context.read<LocaleCubit>(),
           ),
           child: LanguageScreen(
             onContinue: () => context.pop(),
@@ -151,7 +170,10 @@ GoRouter buildAppRouter() {
             GoRoute(
               path: AppRoutes.home,
               builder: (context, state) => BlocProvider(
-                create: (context) => HomeCubit(context.read<HomeRepository>()),
+                create: (context) => HomeCubit(
+                  context.read<HomeRepository>(),
+                  context.read<AppPreferences>(),
+                ),
                 child: HomeScreen(
                   onPartnerTap: () => context.push(AppRoutes.sellerPanel),
                   onSearchTap: () => context.push(AppRoutes.services),
@@ -193,14 +215,27 @@ GoRouter buildAppRouter() {
           StatefulShellBranch(routes: [
             GoRoute(
               path: AppRoutes.bookingsTab,
-              builder: (context, state) => const MyBookingsScreen(),
+              builder: (context, state) => BlocProvider(
+                create: (context) => MyBookingsCubit(
+                  context.read<BookingRepository>(),
+                  context.read<AppPreferences>(),
+                ),
+                child: MyBookingsScreen(
+                  onRateTap: (bookingId) async =>
+                      await context.push<bool>(AppRoutes.review(bookingId)) ?? false,
+                  onTrackTap: (bookingId) => context.push(AppRoutes.tracking(bookingId)),
+                ),
+              ),
             ),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(
               path: AppRoutes.wallet,
               builder: (context, state) => BlocProvider(
-                create: (context) => WalletCubit(context.read<WalletRepository>()),
+                create: (context) => WalletCubit(
+                  context.read<WalletRepository>(),
+                  context.read<AppPreferences>(),
+                ),
                 child: const WalletScreen(),
               ),
             ),
@@ -211,7 +246,9 @@ GoRouter buildAppRouter() {
               builder: (context, state) => BlocProvider(
                 create: (context) => ProfileCubit(
                   context.read<ProfileRepository>(),
+                  context.read<AuthRepository>(),
                   context.read<AppPreferences>(),
+                  push: context.read<PushService>(),
                 ),
                 child: ProfileScreen(
                   onSignedOut: () => context.go(AppRoutes.login),
@@ -219,7 +256,10 @@ GoRouter buildAppRouter() {
                   onOffersTap: () => context.push(AppRoutes.offers),
                   onNotificationsTap: () => context.push(AppRoutes.notifications),
                   onLanguageTap: () => context.push(AppRoutes.language),
-                  onRateServiceTap: () => context.push(AppRoutes.review(_demoBookingId)),
+                  onAddressesTap: () => context.push(AppRoutes.addresses),
+                  // Reviews are per-booking now, so this lands on the list
+                  // where a completed booking can be picked.
+                  onRateServiceTap: () => context.go(AppRoutes.bookingsTab),
                   onBecomeProviderTap: () => context.push(AppRoutes.providerRegister),
                   onProviderDashboardTap: () => context.push(AppRoutes.providerDashboard),
                 ),
@@ -229,6 +269,16 @@ GoRouter buildAppRouter() {
         ],
       ),
 
+      GoRoute(
+        path: AppRoutes.addresses,
+        builder: (context, state) => BlocProvider(
+          create: (context) => AddressesCubit(
+            context.read<LocationsRepository>(),
+            context.read<AppPreferences>(),
+          ),
+          child: const AddressesScreen(),
+        ),
+      ),
       GoRoute(
         path: AppRoutes.bestSellers,
         builder: (context, state) => const BestSellersScreen(),
@@ -257,45 +307,73 @@ GoRouter buildAppRouter() {
       GoRoute(
         path: AppRoutes.sellerPanel,
         parentNavigatorKey: _rootKey,
-        builder: (context, state) => SellerShell(onBack: () => context.pop()),
+        builder: (context, state) => MultiBlocProvider(
+          providers: [
+            BlocProvider(
+              create: (context) =>
+                  SellerListingsCubit(context.read<MarketplaceRepository>())..load(),
+            ),
+            BlocProvider(
+              create: (context) =>
+                  SellerOrdersCubit(context.read<MarketplaceRepository>())..load(),
+            ),
+          ],
+          child: SellerShell(onBack: () => context.pop()),
+        ),
       ),
       GoRoute(
         path: AppRoutes.notifications,
         builder: (context, state) => BlocProvider(
-          create: (context) => NotificationsCubit(context.read<NotificationsRepository>()),
+          create: (context) => NotificationsCubit(
+            context.read<NotificationsRepository>(),
+            context.read<AppPreferences>(),
+          ),
           child: const NotificationsScreen(),
         ),
       ),
       GoRoute(
         path: AppRoutes.offers,
         builder: (context, state) => BlocProvider(
-          create: (context) => OffersCubit(context.read<OffersRepository>()),
+          create: (context) => OffersCubit(
+            context.read<OffersRepository>(),
+            context.read<AppPreferences>(),
+          ),
           child: const OffersScreen(),
         ),
       ),
       GoRoute(
         path: AppRoutes.taxi,
         builder: (context, state) => BlocProvider(
-          create: (context) => TaxiCubit(context.read<RideRepository>()),
-          child: TaxiScreen(
-            onTrackRide: () => context.push(AppRoutes.tracking(_demoOrderId)),
-          ),
+          create: (context) => RideBookingCubit(context.read<RideRepository>()),
+          child: const RideBookingFlow(),
         ),
       ),
       GoRoute(
         path: AppRoutes.rental,
         builder: (context, state) => BlocProvider(
-          create: (context) => RentalCubit(context.read<RentalRepository>()),
+          create: (context) => RentalCubit(
+            context.read<MarketplaceRepository>(),
+            context.read<AppPreferences>(),
+          ),
           child: const RentalScreen(),
         ),
       ),
       GoRoute(
         path: AppRoutes.porter,
         builder: (context, state) => BlocProvider(
-          create: (context) => PorterCubit(context.read<PorterRepository>()),
+          create: (context) => PorterCubit(
+            context.read<PorterRepository>(),
+            context.read<AppPreferences>(),
+          ),
           child: PorterScreen(
             onDone: () => context.pop(),
-            onTrack: () => context.push(AppRoutes.tracking(_demoOrderId)),
+            // Order tracking covers home-services bookings only — a porter
+            // delivery id is not a Booking id, so it cannot be tracked here.
+            onTrack: () => ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(const SnackBar(
+                content: Text('Delivery tracking isn\u2019t available yet'),
+              )),
           ),
         ),
       ),
@@ -305,7 +383,10 @@ GoRouter buildAppRouter() {
         builder: (context, state) {
           final serviceId = state.pathParameters['serviceId']!;
           return BlocProvider(
-            create: (context) => ServiceDetailCubit(context.read<ServicesRepository>()),
+            create: (context) => ServiceDetailCubit(
+              context.read<ServicesRepository>(),
+              context.read<AppPreferences>(),
+            ),
             child: ServiceDetailScreen(
               serviceId: serviceId,
               onBookNow: () => context.push(AppRoutes.booking(serviceId)),
@@ -320,6 +401,7 @@ GoRouter buildAppRouter() {
           create: (context) => BookingBloc(
             context.read<BookingRepository>(),
             context.read<PaymentRepository>(),
+            context.read<AppPreferences>(),
           ),
           child: child,
         ),
@@ -357,11 +439,14 @@ GoRouter buildAppRouter() {
         builder: (context, state) {
           final orderId = state.pathParameters['orderId']!;
           return BlocProvider(
-            create: (context) => TrackingCubit(context.read<TrackingRepository>()),
+            create: (context) => TrackingCubit(
+              context.read<TrackingRepository>(),
+              context.read<AppPreferences>(),
+            ),
             child: TrackingScreen(
               orderId: orderId,
               onChatTap: () => context.push(AppRoutes.trackingChat(orderId)),
-              onCancelled: () => context.go(AppRoutes.home),
+              onCancelled: () => context.go(AppRoutes.bookingsTab),
             ),
           );
         },
@@ -371,7 +456,12 @@ GoRouter buildAppRouter() {
         builder: (context, state) {
           final orderId = state.pathParameters['orderId']!;
           return BlocProvider(
-            create: (context) => ChatCubit(context.read<ChatRepository>()),
+            // One socket per open thread, disposed with the cubit.
+            create: (context) => ChatCubit(
+              context.read<ChatRepository>(),
+              ChatSocket(context.read<TokenStorage>()),
+              context.read<AppPreferences>(),
+            ),
             child: ChatScreen(orderId: orderId),
           );
         },
@@ -382,10 +472,14 @@ GoRouter buildAppRouter() {
         builder: (context, state) {
           final bookingId = state.pathParameters['bookingId']!;
           return BlocProvider(
-            create: (context) => ReviewCubit(context.read<ReviewRepository>()),
+            create: (context) => ReviewCubit(
+              context.read<ReviewRepository>(),
+              context.read<AppPreferences>(),
+            ),
             child: ReviewScreen(
               bookingId: bookingId,
-              onDone: () => context.pop(),
+              // `true` tells My Bookings the review actually went through.
+              onDone: () => context.pop(true),
             ),
           );
         },
@@ -403,8 +497,12 @@ GoRouter buildAppRouter() {
       GoRoute(
         path: AppRoutes.providerDashboard,
         builder: (context, state) => BlocProvider(
-          create: (context) => ProviderDashboardCubit(context.read<ProviderRepository>()),
+          create: (context) => ProviderDashboardCubit(
+            context.read<ProviderRepository>(),
+            context.read<AppPreferences>(),
+          ),
           child: ProviderDashboardScreen(
+            onRegisterTap: () => context.push(AppRoutes.providerRegister),
             onScheduleTap: () => context.push(AppRoutes.providerSchedule),
             onEarningsTap: () => context.push(AppRoutes.providerEarnings),
           ),
@@ -413,25 +511,49 @@ GoRouter buildAppRouter() {
       GoRoute(
         path: AppRoutes.providerSchedule,
         builder: (context, state) => BlocProvider(
-          create: (context) => ProviderScheduleCubit(context.read<ProviderRepository>()),
-          child: const ProviderScheduleScreen(),
+          create: (context) => ProviderScheduleCubit(
+            context.read<ProviderRepository>(),
+            context.read<AppPreferences>(),
+          ),
+          child: ProviderScheduleScreen(
+            onRegisterTap: () => context.push(AppRoutes.providerRegister),
+          ),
         ),
       ),
       GoRoute(
         path: AppRoutes.providerEarnings,
         builder: (context, state) => BlocProvider(
-          create: (context) => ProviderEarningsCubit(context.read<ProviderRepository>()),
-          child: const ProviderEarningsScreen(),
+          create: (context) => ProviderEarningsCubit(
+            context.read<ProviderRepository>(),
+            context.read<AppPreferences>(),
+          ),
+          child: ProviderEarningsScreen(
+            onRegisterTap: () => context.push(AppRoutes.providerRegister),
+          ),
         ),
       ),
 
       GoRoute(
         path: AppRoutes.elkCleanHome,
-        builder: (context, state) => ElkCleanShell(onBack: () => context.pop()),
+        builder: (context, state) => BlocProvider(
+          create: (context) => ElkCleanCubit(
+            context.read<MarketplaceRepository>(),
+            context.read<LocationsRepository>(),
+            context.read<AppPreferences>(),
+          ),
+          child: ElkCleanShell(onBack: () => context.pop()),
+        ),
       ),
       GoRoute(
         path: AppRoutes.elkRepairHome,
-        builder: (context, state) => ElkRepairShell(onBack: () => context.pop()),
+        builder: (context, state) => BlocProvider(
+          create: (context) => ElkRepCubit(
+            context.read<MarketplaceRepository>(),
+            context.read<LocationsRepository>(),
+            context.read<AppPreferences>(),
+          ),
+          child: ElkRepairShell(onBack: () => context.pop()),
+        ),
       ),
 
       GoRoute(
@@ -446,7 +568,10 @@ GoRouter buildAppRouter() {
         builder: (context, state) {
           final stayId = state.pathParameters['stayId']!;
           return BlocProvider(
-            create: (context) => StayDetailCubit(context.read<ElkStayRepository>()),
+            create: (context) => StayDetailCubit(
+              context.read<MarketplaceRepository>(),
+              context.read<AppPreferences>(),
+            ),
             child: StayDetailScreen(stayId: stayId),
           );
         },

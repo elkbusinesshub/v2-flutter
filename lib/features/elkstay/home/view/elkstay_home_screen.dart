@@ -5,6 +5,7 @@ import '../../../../core/theme/elkstay_colors.dart';
 import '../../../../core/widgets/location_picker_sheet.dart';
 import '../../../../core/widgets/state_views.dart';
 import '../../../../data/models/stay_models.dart';
+import '../../../../l10n/app_localizations.dart';
 import '../cubit/elkstay_home_cubit.dart';
 
 class ElkStayHomeScreen extends StatefulWidget {
@@ -13,11 +14,14 @@ class ElkStayHomeScreen extends StatefulWidget {
     required this.onCategoryTap,
     required this.onStayTap,
     required this.onBack,
+    required this.onSavedTap,
   });
 
-  final ValueChanged<StayCategoryType> onCategoryTap;
+  /// Nullable: "See all" passes null to mean "no category filter".
+  final ValueChanged<StayCategoryType?> onCategoryTap;
   final ValueChanged<String> onStayTap;
   final VoidCallback onBack;
+  final VoidCallback onSavedTap;
 
   @override
   State<ElkStayHomeScreen> createState() => _ElkStayHomeScreenState();
@@ -39,6 +43,7 @@ class _ElkStayHomeScreenState extends State<ElkStayHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: ElkStayColors.paper,
       body: BlocBuilder<ElkStayHomeCubit, ElkStayHomeState>(
@@ -47,9 +52,14 @@ class _ElkStayHomeScreenState extends State<ElkStayHomeScreen> {
               state.status == ElkStayHomeStatus.initial) {
             return const LoadingView();
           }
+          if (state.status == ElkStayHomeStatus.guest) {
+            return SignInRequiredView(
+              message: l10n.stayBrowseSignInPrompt,
+            );
+          }
           if (state.status == ElkStayHomeStatus.error || state.feed == null) {
             return ErrorRetryView(
-              message: state.errorMessage ?? 'Something went wrong',
+              message: state.errorMessage ?? l10n.errorGeneric,
               onRetry: () => context.read<ElkStayHomeCubit>().loadHomeData(),
             );
           }
@@ -63,20 +73,25 @@ class _ElkStayHomeScreenState extends State<ElkStayHomeScreen> {
                   onBack: widget.onBack,
                   location: _pickedLocation?.address ?? feed.location,
                   onLocationTap: _chooseLocation,
+                  onSavedTap: widget.onSavedTap,
                 ),
               ),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
-                    _SectionLabel('What are you looking for?'),
+                    _SectionLabel(l10n.whatAreYouLookingFor),
                     const SizedBox(height: 12),
                     _CategoryGrid(
                       categories: feed.categories,
                       onTap: widget.onCategoryTap,
                     ),
                     const SizedBox(height: 24),
-                    _SectionHeader(title: 'Top rated near you'),
+                    _SectionHeader(
+                      title: l10n.topRatedNearYou,
+                      // Null category = every listing, which is what "see all" means here.
+                      onSeeAll: () => widget.onCategoryTap(null),
+                    ),
                     const SizedBox(height: 12),
                     _TopRatedList(
                       stays: feed.topRated,
@@ -99,15 +114,18 @@ class _Header extends StatelessWidget {
     required this.onBack,
     required this.location,
     required this.onLocationTap,
+    required this.onSavedTap,
   });
 
   final ElkStayHomeFeed feed;
   final VoidCallback onBack;
   final String location;
   final VoidCallback onLocationTap;
+  final VoidCallback onSavedTap;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final top = MediaQuery.of(context).padding.top;
     return ClipRRect(
       borderRadius: const BorderRadius.only(
@@ -161,9 +179,9 @@ class _Header extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Good morning,',
-                            style: TextStyle(fontSize: 13, color: Color(0xFFB7CCC2), fontWeight: FontWeight.w600),
+                          Text(
+                            l10n.goodMorning,
+                            style: const TextStyle(fontSize: 13, color: Color(0xFFB7CCC2), fontWeight: FontWeight.w600),
                           ),
                           Text(
                             '${feed.userName} 👋',
@@ -172,6 +190,22 @@ class _Header extends StatelessWidget {
                         ],
                       ),
                     ),
+                    GestureDetector(
+                      onTap: onSavedTap,
+                      child: Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.13),
+                          borderRadius: BorderRadius.circular(13),
+                          border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.20)),
+                        ),
+                        child: const Icon(Icons.favorite_border_rounded,
+                            color: Colors.white, size: 20),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
                     Container(
                       width: 42,
                       height: 42,
@@ -206,7 +240,7 @@ class _Header extends StatelessWidget {
                       const SizedBox(width: 11),
                       Expanded(
                         child: Text(
-                          'Search area, college, or PG',
+                          l10n.staySearchHint,
                           style: TextStyle(fontSize: 14, color: Colors.white.withValues(alpha: 0.6)),
                         ),
                       ),
@@ -269,11 +303,13 @@ class _SectionLabel extends StatelessWidget {
 }
 
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title});
+  const _SectionHeader({required this.title, this.onSeeAll});
   final String title;
+  final VoidCallback? onSeeAll;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -281,9 +317,16 @@ class _SectionHeader extends StatelessWidget {
           title,
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: ElkStayColors.ink),
         ),
-        Text(
-          'See all',
-          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: ElkStayColors.honeyDeep),
+        GestureDetector(
+          onTap: onSeeAll,
+          behavior: HitTestBehavior.opaque,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+            child: Text(
+              l10n.commonSeeAll,
+              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: ElkStayColors.honeyDeep),
+            ),
+          ),
         ),
       ],
     );

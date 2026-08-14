@@ -1,14 +1,20 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../../data/datasources/elkstay_dummy_data.dart';
+import '../../../core/utils/app_preferences.dart';
+import '../../../core/widgets/state_views.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../data/models/stay_models.dart';
-import '../../../data/repositories/elkstay_repository.dart';
+import '../../../data/repositories/marketplace_repository.dart';
+import '../explore/cubit/elkstay_explore_cubit.dart';
 import '../home/cubit/elkstay_home_cubit.dart';
 import '../home/view/elkstay_home_screen.dart';
+import '../favorites/cubit/stay_favorites_cubit.dart';
+import '../favorites/view/stay_favorites_screen.dart';
+import '../stay_detail/cubit/stay_detail_cubit.dart';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const _d9 = Color(0xFF0C241D);
@@ -53,15 +59,6 @@ TextStyle _nu({
   letterSpacing: sp,
 );
 
-// ─── Room definitions ────────────────────────────────────────────────────────
-typedef _RD = ({String kind, String sub, int price});
-const List<_RD> _rds = [
-  (kind: 'Single Sharing', sub: 'Private room · attached bath', price: 15000),
-  (kind: 'Double Sharing', sub: '2 beds · shared bath', price: 11000),
-  (kind: 'Triple Sharing', sub: '3 beds · economical', price: 8500),
-];
-
-const _dates = ['1 Jul', '5 Jul', '10 Jul', '15 Jul'];
 const _durs = [3, 6, 11];
 
 const _amenIcons = <String, IconData>{
@@ -76,29 +73,29 @@ const _amenIcons = <String, IconData>{
 
 // ─── Payment methods ─────────────────────────────────────────────────────────
 typedef _PMD = ({String id, String label, String sub, IconData icon});
-const List<_PMD> _pmds = [
+List<_PMD> _pmdsFor(AppLocalizations l10n) => [
   (
     id: 'upi',
     label: 'UPI',
-    sub: 'GPay, PhonePe, Paytm & more',
+    sub: l10n.payUpiSub,
     icon: Icons.account_balance_rounded,
   ),
   (
     id: 'card',
-    label: 'Credit / Debit Card',
-    sub: 'Visa, Mastercard, Rupay',
+    label: l10n.payCard,
+    sub: l10n.payCardBrandsIn,
     icon: Icons.credit_card_rounded,
   ),
   (
     id: 'wallet',
-    label: 'ELK Wallet',
+    label: l10n.payElkWallet,
     sub: 'Balance ₹1,250',
     icon: Icons.account_balance_wallet_rounded,
   ),
   (
     id: 'bank',
-    label: 'Net Banking',
-    sub: 'All major banks',
+    label: l10n.payNetBanking,
+    sub: l10n.payAllMajorBanks,
     icon: Icons.location_city_rounded,
   ),
 ];
@@ -109,7 +106,7 @@ String _fmt(int n) => n.toString().replaceAllMapped(
   (m) => '${m[1]},',
 );
 
-enum _Sn { home, listings, detail, booking, checkout, payment, success }
+enum _Sn { home, listings, favorites, detail, booking, checkout, payment, success }
 
 // ═════════════════════════════════════════════════════════════════════════════
 //  Shell
@@ -128,50 +125,71 @@ class ElkStayShell extends StatefulWidget {
 }
 
 class _ElkStayShellState extends State<ElkStayShell> {
+  AppLocalizations get l10n => AppLocalizations.of(context);
+
   late final ElkStayHomeCubit _homeCubit;
-  late final List<StayModel> _allProps;
+  late final ElkStayExploreCubit _exploreCubit;
+  late final StayDetailCubit _detailCubit;
+  late final StayFavoritesCubit _favoritesCubit;
 
   final List<_Sn> _stack = [_Sn.home];
   _Sn get _cur => _stack.last;
 
   // listings
-  String _listTitle = 'PG Stays';
-  String _listChip = 'All';
-  StayCategoryType? _listCat;
-
-  // selected property
-  late StayModel _prop;
+  String? _listTitle;
+  String _listChip = 'all';
 
   // booking flow
-  _RD _room = _rds[1];
-  String _movein = '1 Jul';
+  int _dateIndex = 0;
   int _months = 6;
   bool _coupon = false;
 
   // payment
   String _method = 'upi';
-  bool _paying = false;
-
-  // success
-  String _bookingId = '';
 
   int get _fee => 499;
   int get _disc => _coupon ? 500 : 0;
-  int get _total => _room.price + _room.price + _fee - _disc;
+
+  /// Coupon the backend validates when [_coupon] is on (seeded: ₹500 off).
+  static const _couponCode = 'ELKNEW';
+
+  /// Move-in options: the next four fortnight-ish dates, sent as ISO
+  /// calendar dates and shown in the app's "1 Jul" style.
+  late final List<DateTime> _moveInDates = List.generate(4, (i) {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day).add(Duration(days: 1 + i * 5));
+  });
+
+  String _dateLabel(DateTime d) =>
+      DateFormat('d MMM', l10n.localeName).format(d);
+
+  String _isoDate(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  StayRoomOption? get _room => _detailCubit.state.selectedRoomOption;
+
+  int get _total {
+    final price = _room?.pricePerMonth ?? 0;
+    return price + price + _fee - _disc;
+  }
 
   @override
   void initState() {
     super.initState();
-    _homeCubit = ElkStayHomeCubit(context.read<ElkStayRepository>());
-    _allProps = elkStayStaysJson
-        .map((j) => StayModel.fromJson(Map<String, dynamic>.from(j)))
-        .toList();
-    _prop = _allProps.first;
+    final marketplace = context.read<MarketplaceRepository>();
+    final preferences = context.read<AppPreferences>();
+    _homeCubit = ElkStayHomeCubit(marketplace, preferences);
+    _exploreCubit = ElkStayExploreCubit(marketplace, preferences);
+    _detailCubit = StayDetailCubit(marketplace, preferences);
+    _favoritesCubit = StayFavoritesCubit(marketplace, preferences);
   }
 
   @override
   void dispose() {
     _homeCubit.close();
+    _exploreCubit.close();
+    _detailCubit.close();
+    _favoritesCubit.close();
     super.dispose();
   }
 
@@ -187,40 +205,67 @@ class _ElkStayShellState extends State<ElkStayShell> {
 
   void _openListings(StayCategoryType? cat, String title) {
     setState(() {
-      _listCat = cat;
       _listTitle = title;
-      _listChip = 'All';
+      _listChip = 'all';
     });
+    _exploreCubit.loadStays(filter: cat);
     _push(_Sn.listings);
   }
 
   void _openDetail(String stayId) {
-    final match =
-        _allProps.where((p) => p.id == stayId).firstOrNull ?? _allProps.first;
-    setState(() {
-      _prop = match;
-      _room = _rds[1];
-    });
+    _detailCubit.loadDetail(stayId);
+    setState(() => _dateIndex = 0);
     _push(_Sn.detail);
   }
 
-  List<StayModel> get _filtered => _listCat == null
-      ? _allProps
-      : _allProps.where((p) => p.categoryType == _listCat).toList();
+  /// Applies a listings chip. Only the chips the listing API supports change
+  /// the query — see the docs' known limitations for the rest.
+  void _applyListChip(String chip) {
+    setState(() => _listChip = chip);
+    switch (chip) {
+      case 'single':
+        _exploreCubit.setRoomType('single');
+      case 'double':
+        _exploreCubit.setRoomType('double');
+      case 'meals':
+        _exploreCubit.setRoomType(null);
+        _exploreCubit.toggleMeals();
+      default:
+        _exploreCubit.setRoomType(null);
+    }
+  }
 
-  void _payNow() {
-    setState(() => _paying = true);
-    Future.delayed(const Duration(milliseconds: 1400), () {
-      if (!mounted) return;
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-      final rng = math.Random();
-      _bookingId =
-          'ELK-${List.generate(5, (_) => chars[rng.nextInt(chars.length)]).join()}';
-      setState(() {
-        _paying = false;
-        _stack.add(_Sn.success);
-      });
-    });
+  Future<void> _payNow() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final booking = await _detailCubit.requestToBook(
+      moveInDate: _isoDate(_moveInDates[_dateIndex]),
+      durationMonths: _months,
+      paymentMethod: _method,
+      couponCode: _coupon ? _couponCode : null,
+    );
+    if (!mounted) return;
+    if (booking != null) {
+      _push(_Sn.success);
+    } else {
+      messenger.showSnackBar(SnackBar(
+        content: Text(_detailCubit.state.actionError ?? l10n.paymentFailed),
+      ));
+    }
+  }
+
+  Future<void> _scheduleVisit() async {
+    final messenger = ScaffoldMessenger.of(context);
+    // Default visit slot: the first offered move-in date at 5 PM.
+    final date = _moveInDates.first;
+    final visit = await _detailCubit.scheduleVisit(
+      DateTime(date.year, date.month, date.day, 17).toIso8601String(),
+    );
+    if (!mounted) return;
+    messenger.showSnackBar(SnackBar(
+      content: Text(visit != null
+          ? l10n.visitScheduledFor(_dateLabel(date))
+          : _detailCubit.state.actionError ?? l10n.couldNotScheduleVisit),
+    ));
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -229,26 +274,38 @@ class _ElkStayShellState extends State<ElkStayShell> {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (_, _) => _pop(),
-      child: BlocProvider.value(
-        value: _homeCubit,
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 220),
-          transitionBuilder: (child, anim) =>
-              FadeTransition(opacity: anim, child: child),
-          child: KeyedSubtree(key: ValueKey(_cur), child: _screen()),
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider.value(value: _homeCubit),
+          BlocProvider.value(value: _exploreCubit),
+          BlocProvider.value(value: _detailCubit),
+          BlocProvider.value(value: _favoritesCubit),
+        ],
+        // Builder is load-bearing: every screen below reads the cubits with
+        // context.watch, and the State's own context sits *above* the
+        // MultiBlocProvider created here. Without it the lookup throws and the
+        // screen renders as a blank grey error box.
+        child: Builder(
+          builder: (context) => AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            transitionBuilder: (child, anim) =>
+                FadeTransition(opacity: anim, child: child),
+            child: KeyedSubtree(key: ValueKey(_cur), child: _screen(context)),
+          ),
         ),
       ),
     );
   }
 
-  Widget _screen() => switch (_cur) {
+  Widget _screen(BuildContext context) => switch (_cur) {
     _Sn.home => _buildHome(),
-    _Sn.listings => _buildListings(),
-    _Sn.detail => _buildDetail(),
-    _Sn.booking => _buildBooking(),
-    _Sn.checkout => _buildCheckout(),
-    _Sn.payment => _buildPayment(),
-    _Sn.success => _buildSuccess(),
+    _Sn.listings => _buildListings(context),
+    _Sn.favorites => StayFavoritesScreen(onBack: _pop, onStayTap: _openDetail),
+    _Sn.detail => _buildDetail(context),
+    _Sn.booking => _buildBooking(context),
+    _Sn.checkout => _buildCheckout(context),
+    _Sn.payment => _buildPayment(context),
+    _Sn.success => _buildSuccess(context),
   };
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -257,25 +314,36 @@ class _ElkStayShellState extends State<ElkStayShell> {
   Widget _buildHome() => Scaffold(
     backgroundColor: _bg,
     body: ElkStayHomeScreen(
-      onCategoryTap: (cat) => _openListings(cat, cat.displayName),
+      onCategoryTap: (cat) => _openListings(cat, cat?.displayName ?? l10n.allStays),
       onStayTap: (id) => _openDetail(id),
       onBack: widget.onBack,
+      onSavedTap: () => _push(_Sn.favorites),
     ),
   );
 
   // ══════════════════════════════════════════════════════════════════════════
   //  LISTINGS
   // ══════════════════════════════════════════════════════════════════════════
-  Widget _buildListings() {
-    final props = _filtered;
-    const chips = ['All', 'Single', 'Double', 'AC', 'Food incl.', 'Near metro'];
+  Widget _buildListings(BuildContext context) {
+    final exploreState = context.watch<ElkStayExploreCubit>().state;
+    final props = exploreState.stays;
+    // (id, label): the id drives the query, so translating the label cannot
+    // change which filter a chip applies.
+    final chips = <(String, String)>[
+      ('all', l10n.chipAll),
+      ('single', l10n.chipSingle),
+      ('double', l10n.chipDouble),
+      ('ac', 'AC'),
+      ('meals', l10n.chipFoodIncl),
+      ('metro', l10n.chipNearMetro),
+    ];
 
     return Scaffold(
       backgroundColor: _bg,
       body: Column(
         children: [
           // dark header
-          _DarkHeader(title: _listTitle, onBack: _pop),
+          _DarkHeader(title: _listTitle ?? l10n.pgStays, onBack: _pop),
           // filter chips bar
           Container(
             color: Colors.white,
@@ -288,9 +356,9 @@ class _ElkStayShellState extends State<ElkStayShell> {
                 separatorBuilder: (_, _) => const SizedBox(width: 9),
                 itemCount: chips.length,
                 itemBuilder: (_, i) {
-                  final on = _listChip == chips[i];
+                  final on = _listChip == chips[i].$1;
                   return GestureDetector(
-                    onTap: () => setState(() => _listChip = chips[i]),
+                    onTap: () => _applyListChip(chips[i].$1),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 160),
                       padding: const EdgeInsets.symmetric(
@@ -311,7 +379,7 @@ class _ElkStayShellState extends State<ElkStayShell> {
                             : null,
                       ),
                       child: Text(
-                        chips[i],
+                        chips[i].$2,
                         style: _nu(
                           sz: 13,
                           w: FontWeight.w800,
@@ -343,7 +411,7 @@ class _ElkStayShellState extends State<ElkStayShell> {
                                 style: _pj(sz: 13, w: FontWeight.w800),
                               ),
                               TextSpan(
-                                text: 'stays in Koramangala',
+                                text: l10n.staysInArea,
                                 style: _pj(sz: 13, w: FontWeight.w800, c: _i5),
                               ),
                             ],
@@ -353,7 +421,7 @@ class _ElkStayShellState extends State<ElkStayShell> {
                         Row(
                           children: [
                             Text(
-                              'Sort ',
+                              l10n.sortLabel,
                               style: _pj(sz: 13, w: FontWeight.w800, c: _td),
                             ),
                             const Icon(
@@ -382,7 +450,37 @@ class _ElkStayShellState extends State<ElkStayShell> {
   // ══════════════════════════════════════════════════════════════════════════
   //  DETAIL
   // ══════════════════════════════════════════════════════════════════════════
-  Widget _buildDetail() {
+  Widget _buildDetail(BuildContext context) {
+    final detailState = context.watch<StayDetailCubit>().state;
+    if (detailState.status == StayDetailStatus.guest) {
+      return Scaffold(
+        backgroundColor: _bg,
+        body: SafeArea(
+          child: SignInRequiredView(
+            message: l10n.staySignInPrompt,
+          ),
+        ),
+      );
+    }
+    if (detailState.status == StayDetailStatus.error) {
+      return Scaffold(
+        backgroundColor: _bg,
+        body: SafeArea(
+          child: ErrorRetryView(
+            message: detailState.errorMessage ?? l10n.errorGeneric,
+            onRetry: () {
+              final id = detailState.stay?.id;
+              if (id != null) _detailCubit.loadDetail(id);
+            },
+          ),
+        ),
+      );
+    }
+    final stay = detailState.stay;
+    if (stay == null) {
+      return const Scaffold(backgroundColor: _bg, body: LoadingView());
+    }
+    final roomOptions = detailState.roomOptions;
     final top = MediaQuery.of(context).padding.top;
     return Scaffold(
       backgroundColor: _bg,
@@ -404,8 +502,8 @@ class _ElkStayShellState extends State<ElkStayShell> {
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                                 colors: [
-                                  Color(_prop.gradientStart),
-                                  Color(_prop.gradientEnd),
+                                  Color(stay.gradientStart),
+                                  Color(stay.gradientEnd),
                                 ],
                               ),
                             ),
@@ -431,9 +529,11 @@ class _ElkStayShellState extends State<ElkStayShell> {
                                 onTap: _pop,
                               ),
                               _RoundBtn(
-                                icon: Icons.favorite_border_rounded,
+                                icon: detailState.isSaved
+                                    ? Icons.favorite_rounded
+                                    : Icons.favorite_border_rounded,
                                 iconColor: _am,
-                                onTap: () {},
+                                onTap: _detailCubit.toggleSaved,
                               ),
                             ],
                           ),
@@ -498,7 +598,7 @@ class _ElkStayShellState extends State<ElkStayShell> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    _prop.name,
+                                    stay.name,
                                     style: _nu(
                                       sz: 21,
                                       w: FontWeight.w900,
@@ -518,7 +618,7 @@ class _ElkStayShellState extends State<ElkStayShell> {
                                       const SizedBox(width: 4),
                                       Expanded(
                                         child: Text(
-                                          '${_prop.location} · ${_prop.badge}',
+                                          '${stay.location} · ${stay.badge}',
                                           style: _pj(sz: 13, c: _i4),
                                           overflow: TextOverflow.ellipsis,
                                         ),
@@ -548,7 +648,7 @@ class _ElkStayShellState extends State<ElkStayShell> {
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    '${_prop.rating}',
+                                    '${stay.rating}',
                                     style: _pj(sz: 13, w: FontWeight.w800),
                                   ),
                                 ],
@@ -562,30 +662,30 @@ class _ElkStayShellState extends State<ElkStayShell> {
                           spacing: 8,
                           runSpacing: 8,
                           children: [
-                            _Tag(label: 'Verified', bg: _t5, tc: _td),
-                            _Tag(label: 'Food included', bg: _y5, tc: _am),
+                            _Tag(label: l10n.verified, bg: _t5, tc: _td),
+                            _Tag(label: l10n.foodIncluded, bg: _y5, tc: _am),
                             _Tag(label: '0.4 km from metro', bg: _ch, tc: _i5),
                           ],
                         ),
                         // choose sharing
                         const SizedBox(height: 24),
                         Text(
-                          'Choose sharing',
+                          l10n.chooseSharing,
                           style: _nu(sz: 17, w: FontWeight.w900, sp: -0.3),
                         ),
                         const SizedBox(height: 12),
-                        for (int i = 0; i < _rds.length; i++) ...[
+                        for (int i = 0; i < roomOptions.length; i++) ...[
                           _RoomTile(
-                            r: _rds[i],
-                            selected: _room.kind == _rds[i].kind,
-                            onTap: () => setState(() => _room = _rds[i]),
+                            r: roomOptions[i],
+                            selected: detailState.selectedRoomOptionId == roomOptions[i].id,
+                            onTap: () => _detailCubit.selectRoomOption(roomOptions[i].id),
                           ),
-                          if (i < _rds.length - 1) const SizedBox(height: 10),
+                          if (i < roomOptions.length - 1) const SizedBox(height: 10),
                         ],
                         // amenities
                         const SizedBox(height: 24),
                         Text(
-                          'Amenities',
+                          l10n.amenities,
                           style: _nu(sz: 17, w: FontWeight.w900, sp: -0.3),
                         ),
                         const SizedBox(height: 14),
@@ -596,7 +696,7 @@ class _ElkStayShellState extends State<ElkStayShell> {
                           childAspectRatio: 2.9,
                           mainAxisSpacing: 12,
                           crossAxisSpacing: 10,
-                          children: _prop.amenities.map((a) {
+                          children: stay.amenities.map((a) {
                             final ico =
                                 _amenIcons[a.iconKey] ?? Icons.check_rounded;
                             return Row(
@@ -629,7 +729,7 @@ class _ElkStayShellState extends State<ElkStayShell> {
                         // ratings
                         const SizedBox(height: 24),
                         Text(
-                          'Ratings & reviews',
+                          l10n.ratingsReviews,
                           style: _nu(sz: 17, w: FontWeight.w900, sp: -0.3),
                         ),
                         const SizedBox(height: 12),
@@ -654,7 +754,7 @@ class _ElkStayShellState extends State<ElkStayShell> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    '${_prop.rating}',
+                                    '${stay.rating}',
                                     style: _nu(
                                       sz: 26,
                                       w: FontWeight.w900,
@@ -672,7 +772,7 @@ class _ElkStayShellState extends State<ElkStayShell> {
                                           (i) => Icon(
                                             Icons.star_rounded,
                                             size: 13,
-                                            color: i < _prop.rating.floor()
+                                            color: i < stay.rating.floor()
                                                 ? _yd
                                                 : _i4,
                                           ),
@@ -691,7 +791,7 @@ class _ElkStayShellState extends State<ElkStayShell> {
                               Divider(color: _ln, height: 1),
                               const SizedBox(height: 12),
                               Text(
-                                '"Clean rooms, great food and very safe. The warden is helpful and the location is perfect for commuting." — Priya S.',
+                                l10n.sampleStayReview,
                                 style: _pj(sz: 12.5, c: _i7, h: 1.5),
                               ),
                             ],
@@ -730,13 +830,13 @@ class _ElkStayShellState extends State<ElkStayShell> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('Starting from', style: _pj(sz: 11.5, c: _i4)),
+                    Text(l10n.startingFrom, style: _pj(sz: 11.5, c: _i4)),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.baseline,
                       textBaseline: TextBaseline.alphabetic,
                       children: [
                         Text(
-                          '₹${_fmt(_room.price)}',
+                          '₹${_fmt(detailState.selectedRoomOption?.pricePerMonth ?? stay.pricePerMonth)}',
                           style: _nu(sz: 22, w: FontWeight.w900, sp: -0.5),
                         ),
                         Text(
@@ -747,12 +847,29 @@ class _ElkStayShellState extends State<ElkStayShell> {
                     ),
                   ],
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
+                // Books a property visit (backend POST /elkstay/visits) —
+                // shows up under the Requests tab of My Stays.
+                OutlinedButton(
+                  onPressed: detailState.isSubmitting ? null : _scheduleVisit,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _td,
+                    side: const BorderSide(color: _ln, width: 1.5),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  ),
+                  child: Text(l10n.visit, style: _nu(sz: 14, w: FontWeight.w900, c: _td)),
+                ),
+                const SizedBox(width: 10),
                 Expanded(
                   child: _CtaBtn(
-                    label: 'Reserve',
+                    label: l10n.reserve,
                     icon: Icons.arrow_forward_rounded,
-                    onTap: () => _push(_Sn.booking),
+                    onTap: detailState.roomOptions.isEmpty
+                        ? null
+                        : () => _push(_Sn.booking),
                   ),
                 ),
               ],
@@ -766,55 +883,60 @@ class _ElkStayShellState extends State<ElkStayShell> {
   // ══════════════════════════════════════════════════════════════════════════
   //  BOOKING
   // ══════════════════════════════════════════════════════════════════════════
-  Widget _buildBooking() => Scaffold(
-    backgroundColor: _bg,
+  Widget _buildBooking(BuildContext context) {
+    final detailState = context.watch<StayDetailCubit>().state;
+    final stay = detailState.stay!;
+    final room = detailState.selectedRoomOption!;
+    final roomOptions = detailState.roomOptions;
+    return Scaffold(
+      backgroundColor: _bg,
     body: Column(
       children: [
-        _DarkHeader(title: 'Book your stay', onBack: _pop),
+        _DarkHeader(title: l10n.bookYourStay, onBack: _pop),
         Expanded(
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
             children: [
-              _PropSummaryCard(prop: _prop, room: _room),
+              _PropSummaryCard(prop: stay, room: room),
               const SizedBox(height: 22),
               Text(
-                'Room type',
+                l10n.roomType,
                 style: _nu(sz: 16, w: FontWeight.w900, sp: -0.3),
               ),
               const SizedBox(height: 10),
               Wrap(
                 spacing: 9,
                 runSpacing: 9,
-                children: _rds.map((r) {
-                  final on = _room.kind == r.kind;
+                children: roomOptions.map((r) {
+                  final on = r.id == detailState.selectedRoomOptionId;
                   return _SelectChip(
                     label: r.kind.split(' ').first,
                     on: on,
-                    onTap: () => setState(() => _room = r),
+                    onTap: () => _detailCubit.selectRoomOption(r.id),
                   );
                 }).toList(),
               ),
               const SizedBox(height: 14),
               Text(
-                'MOVE-IN DATE',
+                l10n.moveInDate,
                 style: _pj(sz: 12, w: FontWeight.w800, c: _i5, sp: 0.2),
               ),
               const SizedBox(height: 7),
               Wrap(
                 spacing: 9,
                 runSpacing: 9,
-                children: _dates.map((d) {
-                  final on = _movein == d;
-                  return _SelectChip(
-                    label: d,
-                    on: on,
-                    onTap: () => setState(() => _movein = d),
-                  );
-                }).toList(),
+                children: [
+                  for (int i = 0; i < _moveInDates.length; i++)
+                    _SelectChip(
+                      label: _dateLabel(_moveInDates[i]),
+                      on: _dateIndex == i,
+                      onTap: () => setState(() => _dateIndex = i),
+                    ),
+                ],
               ),
               const SizedBox(height: 14),
               Text(
-                'DURATION',
+                l10n.durationCaps,
                 style: _pj(sz: 12, w: FontWeight.w800, c: _i5, sp: 0.2),
               ),
               const SizedBox(height: 7),
@@ -831,10 +953,10 @@ class _ElkStayShellState extends State<ElkStayShell> {
                 }).toList(),
               ),
               const SizedBox(height: 14),
-              _FieldRow(label: 'FULL NAME', hint: 'Aarav Sharma'),
+              _FieldRow(label: l10n.fullName, hint: 'Aarav Sharma'),
               const SizedBox(height: 14),
               _FieldRow(
-                label: 'PHONE NUMBER',
+                label: l10n.phoneNumber,
                 hint: '+91 98765 43210',
                 keyboardType: TextInputType.phone,
               ),
@@ -866,13 +988,13 @@ class _ElkStayShellState extends State<ElkStayShell> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(_room.kind, style: _pj(sz: 11.5, c: _i4)),
+                  Text(room.kind, style: _pj(sz: 11.5, c: _i4)),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.baseline,
                     textBaseline: TextBaseline.alphabetic,
                     children: [
                       Text(
-                        '₹${_fmt(_room.price)}',
+                        '₹${_fmt(room.pricePerMonth)}',
                         style: _nu(sz: 22, w: FontWeight.w900, sp: -0.5),
                       ),
                       Text(
@@ -886,7 +1008,7 @@ class _ElkStayShellState extends State<ElkStayShell> {
               const SizedBox(width: 14),
               Expanded(
                 child: _CtaBtn(
-                  label: 'Continue',
+                  label: l10n.commonContinue,
                   onTap: () => _push(_Sn.checkout),
                 ),
               ),
@@ -895,31 +1017,35 @@ class _ElkStayShellState extends State<ElkStayShell> {
         ),
       ],
     ),
-  );
+    );
+  }
 
   // ══════════════════════════════════════════════════════════════════════════
   //  CHECKOUT
   // ══════════════════════════════════════════════════════════════════════════
-  Widget _buildCheckout() {
-    final rent = _room.price;
+  Widget _buildCheckout(BuildContext context) {
+    final detailState = context.watch<StayDetailCubit>().state;
+    final stay = detailState.stay!;
+    final room = detailState.selectedRoomOption!;
+    final rent = room.pricePerMonth;
     return Scaffold(
       backgroundColor: _bg,
       body: Column(
         children: [
-          _DarkHeader(title: 'Review & pay', onBack: _pop),
+          _DarkHeader(title: l10n.reviewAndPay, onBack: _pop),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
               children: [
                 _PropSummaryCard(
-                  prop: _prop,
-                  room: _room,
+                  prop: stay,
+                  room: room,
                   subtitle:
-                      '${_room.kind} · Move-in $_movein · $_months months',
+                      '${room.kind} · Move-in ${_dateLabel(_moveInDates[_dateIndex])} · $_months months',
                 ),
                 const SizedBox(height: 22),
                 Text(
-                  'Payment summary',
+                  l10n.paymentSummary,
                   style: _nu(sz: 16, w: FontWeight.w900, sp: -0.3),
                 ),
                 const SizedBox(height: 12),
@@ -939,16 +1065,16 @@ class _ElkStayShellState extends State<ElkStayShell> {
                   ),
                   child: Column(
                     children: [
-                      _PriceLine(k: 'First month rent', v: '₹${_fmt(rent)}'),
+                      _PriceLine(k: l10n.firstMonthRent, v: '₹${_fmt(rent)}'),
                       _PriceLine(
-                        k: 'Security deposit',
-                        kSub: 'Refundable at move-out',
+                        k: l10n.securityDeposit,
+                        kSub: l10n.refundableAtMoveOut,
                         v: '₹${_fmt(rent)}',
                       ),
-                      _PriceLine(k: 'ELK service fee', v: '₹${_fmt(_fee)}'),
+                      _PriceLine(k: l10n.elkServiceFee, v: '₹${_fmt(_fee)}'),
                       if (_coupon)
                         _PriceLine(
-                          k: 'Coupon ELKNEW',
+                          k: l10n.couponElknew,
                           v: '-₹${_fmt(_disc)}',
                           isDisc: true,
                         ),
@@ -959,7 +1085,7 @@ class _ElkStayShellState extends State<ElkStayShell> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Payable now',
+                            l10n.payableNow,
                             style: _nu(sz: 16, w: FontWeight.w900),
                           ),
                           Text(
@@ -995,7 +1121,7 @@ class _ElkStayShellState extends State<ElkStayShell> {
                             TextSpan(
                               children: [
                                 TextSpan(
-                                  text: 'Apply ',
+                                  text: l10n.applyPrefix,
                                   style: _pj(
                                     sz: 13,
                                     w: FontWeight.w800,
@@ -1011,7 +1137,7 @@ class _ElkStayShellState extends State<ElkStayShell> {
                                   ),
                                 ),
                                 TextSpan(
-                                  text: ' — save ₹500',
+                                  text: l10n.saveFiveHundred,
                                   style: _pj(sz: 13, c: _td),
                                 ),
                               ],
@@ -1019,7 +1145,7 @@ class _ElkStayShellState extends State<ElkStayShell> {
                           ),
                         ),
                         Text(
-                          _coupon ? 'APPLIED' : 'APPLY',
+                          _coupon ? l10n.appliedCaps : l10n.applyCaps,
                           style: _pj(sz: 12.5, w: FontWeight.w900, c: _td),
                         ),
                       ],
@@ -1028,8 +1154,7 @@ class _ElkStayShellState extends State<ElkStayShell> {
                 ),
                 const SizedBox(height: 14),
                 Text(
-                  "By continuing you agree to ELK's stay policy and cancellation terms. "
-                  "Deposit is fully refundable subject to inspection.",
+                  l10n.stayPolicyNote,
                   style: _pj(sz: 11.5, c: _i4, h: 1.5),
                 ),
               ],
@@ -1059,7 +1184,7 @@ class _ElkStayShellState extends State<ElkStayShell> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('Payable now', style: _pj(sz: 11.5, c: _i4)),
+                    Text(l10n.payableNow, style: _pj(sz: 11.5, c: _i4)),
                     Text(
                       '₹${_fmt(_total)}',
                       style: _nu(sz: 22, w: FontWeight.w900, sp: -0.5),
@@ -1069,7 +1194,7 @@ class _ElkStayShellState extends State<ElkStayShell> {
                 const SizedBox(width: 14),
                 Expanded(
                   child: _CtaBtn(
-                    label: 'Proceed to pay',
+                    label: l10n.proceedToPay,
                     onTap: () => _push(_Sn.payment),
                   ),
                 ),
@@ -1084,13 +1209,15 @@ class _ElkStayShellState extends State<ElkStayShell> {
   // ══════════════════════════════════════════════════════════════════════════
   //  PAYMENT
   // ══════════════════════════════════════════════════════════════════════════
-  Widget _buildPayment() => Scaffold(
-    backgroundColor: _bg,
+  Widget _buildPayment(BuildContext context) {
+    final detailState = context.watch<StayDetailCubit>().state;
+    return Scaffold(
+      backgroundColor: _bg,
     body: Stack(
       children: [
         Column(
           children: [
-            _DarkHeader(title: 'Payment', onBack: _pop),
+            _DarkHeader(title: l10n.sectionPayment, onBack: _pop),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
@@ -1100,7 +1227,7 @@ class _ElkStayShellState extends State<ElkStayShell> {
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Column(
                       children: [
-                        Text('Amount payable', style: _pj(sz: 12.5, c: _i4)),
+                        Text(l10n.amountPayable, style: _pj(sz: 12.5, c: _i4)),
                         const SizedBox(height: 2),
                         Text(
                           '₹${_fmt(_total)}',
@@ -1111,11 +1238,11 @@ class _ElkStayShellState extends State<ElkStayShell> {
                   ),
                   const SizedBox(height: 14),
                   Text(
-                    'Pay using',
+                    l10n.payUsing,
                     style: _nu(sz: 16, w: FontWeight.w900, sp: -0.3),
                   ),
                   const SizedBox(height: 12),
-                  for (final pm in _pmds) ...[
+                  for (final pm in _pmdsFor(l10n)) ...[
                     _PayMethodTile(
                       pm: pm,
                       selected: _method == pm.id,
@@ -1128,7 +1255,7 @@ class _ElkStayShellState extends State<ElkStayShell> {
                     _InlineFormBox(
                       children: [
                         _FormField(
-                          label: 'UPI ID',
+                          label: l10n.upiId,
                           initial: 'aarav@okhdfcbank',
                         ),
                       ],
@@ -1137,7 +1264,7 @@ class _ElkStayShellState extends State<ElkStayShell> {
                     _InlineFormBox(
                       children: [
                         _FormField(
-                          label: 'CARD NUMBER',
+                          label: l10n.cardNumber,
                           initial: '4111 1111 1111 1111',
                         ),
                         const SizedBox(height: 10),
@@ -1145,19 +1272,19 @@ class _ElkStayShellState extends State<ElkStayShell> {
                           children: [
                             Expanded(
                               child: _FormField(
-                                label: 'EXPIRY',
+                                label: l10n.cardExpiry,
                                 initial: '08/28',
                               ),
                             ),
                             const SizedBox(width: 10),
                             Expanded(
-                              child: _FormField(label: 'CVV', initial: '123'),
+                              child: _FormField(label: l10n.cardCvv, initial: '123'),
                             ),
                           ],
                         ),
                         const SizedBox(height: 10),
                         _FormField(
-                          label: 'NAME ON CARD',
+                          label: l10n.nameOnCard,
                           initial: 'Aarav Sharma',
                         ),
                       ],
@@ -1200,7 +1327,7 @@ class _ElkStayShellState extends State<ElkStayShell> {
           ],
         ),
         // processing overlay
-        if (_paying)
+        if (detailState.isSubmitting)
           Container(
             color: Colors.black.withValues(alpha: 0.48),
             child: Center(
@@ -1233,7 +1360,7 @@ class _ElkStayShellState extends State<ElkStayShell> {
                     ),
                     const SizedBox(height: 14),
                     Text(
-                      'Processing payment…',
+                      l10n.processingPayment,
                       style: _pj(sz: 13.5, w: FontWeight.w800, c: _i7),
                     ),
                   ],
@@ -1243,13 +1370,19 @@ class _ElkStayShellState extends State<ElkStayShell> {
           ),
       ],
     ),
-  );
+    );
+  }
 
   // ══════════════════════════════════════════════════════════════════════════
   //  SUCCESS
   // ══════════════════════════════════════════════════════════════════════════
-  Widget _buildSuccess() => Scaffold(
-    backgroundColor: _bg,
+  Widget _buildSuccess(BuildContext context) {
+    final detailState = context.watch<StayDetailCubit>().state;
+    final stay = detailState.stay!;
+    final room = detailState.selectedRoomOption!;
+    final bookingCode = detailState.lastBooking?.code ?? '';
+    return Scaffold(
+      backgroundColor: _bg,
     body: SafeArea(
       child: Center(
         child: Padding(
@@ -1276,13 +1409,13 @@ class _ElkStayShellState extends State<ElkStayShell> {
               ),
               const SizedBox(height: 20),
               Text(
-                'Booking confirmed!',
+                l10n.bookingConfirmedBang,
                 style: _nu(sz: 25, w: FontWeight.w900, sp: -0.5),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
               Text(
-                'Your stay at ${_prop.name} is reserved. The host will reach out shortly with check-in details.',
+                'Your stay at ${stay.name} is reserved. The host will reach out shortly with check-in details.',
                 style: _pj(sz: 13.5, c: _i5, h: 1.5),
                 textAlign: TextAlign.center,
               ),
@@ -1305,17 +1438,17 @@ class _ElkStayShellState extends State<ElkStayShell> {
                 ),
                 child: Column(
                   children: [
-                    _TicketRow(k: 'Property', v: _prop.name),
-                    _TicketRow(k: 'Room', v: _room.kind),
-                    _TicketRow(k: 'Move-in', v: '$_movein · $_months months'),
-                    _TicketRow(k: 'Paid', v: '₹${_fmt(_total)}'),
-                    _TicketRow(k: 'Booking ID', v: _bookingId),
+                    _TicketRow(k: l10n.property, v: stay.name),
+                    _TicketRow(k: l10n.room, v: room.kind),
+                    _TicketRow(k: l10n.moveIn, v: '${_dateLabel(_moveInDates[_dateIndex])} · ${l10n.monthsCount(_months)}'),
+                    _TicketRow(k: l10n.paidLabel, v: '₹${_fmt(_total)}'),
+                    _TicketRow(k: l10n.bookingId, v: bookingCode),
                   ],
                 ),
               ),
               const SizedBox(height: 24),
               _CtaBtn(
-                label: 'Back to home',
+                label: l10n.backToHome,
                 onTap: () => setState(() {
                   _stack.clear();
                   _stack.add(_Sn.home);
@@ -1327,7 +1460,8 @@ class _ElkStayShellState extends State<ElkStayShell> {
         ),
       ),
     ),
-  );
+    );
+  }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1458,7 +1592,7 @@ class _RoomTile extends StatelessWidget {
     required this.selected,
     required this.onTap,
   });
-  final _RD r;
+  final StayRoomOption r;
   final bool selected;
   final VoidCallback onTap;
 
@@ -1493,7 +1627,7 @@ class _RoomTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    r.sub,
+                    r.subtitle,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 11.5,
                       fontWeight: FontWeight.w600,
@@ -1504,7 +1638,7 @@ class _RoomTile extends StatelessWidget {
               ),
             ),
             Text(
-              '₹${_fmt(r.price)}',
+              '₹${_fmt(r.pricePerMonth)}',
               style: GoogleFonts.nunito(
                 fontSize: 15,
                 fontWeight: FontWeight.w900,
@@ -1593,7 +1727,7 @@ class _PropSummaryCard extends StatelessWidget {
     this.subtitle,
   });
   final StayModel prop;
-  final _RD room;
+  final StayRoomOption room;
   final String? subtitle;
 
   @override
@@ -2110,13 +2244,17 @@ class _FieldRow extends StatelessWidget {
 class _CtaBtn extends StatelessWidget {
   const _CtaBtn({required this.label, required this.onTap, this.icon});
   final String label;
-  final VoidCallback onTap;
+
+  /// Null disables the button (e.g. a stay with no bookable rooms).
+  final VoidCallback? onTap;
   final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      child: Opacity(
+        opacity: onTap == null ? 0.5 : 1,
       child: Container(
         height: 54,
         decoration: BoxDecoration(
@@ -2147,6 +2285,7 @@ class _CtaBtn extends StatelessWidget {
             ],
           ],
         ),
+      ),
       ),
     );
   }

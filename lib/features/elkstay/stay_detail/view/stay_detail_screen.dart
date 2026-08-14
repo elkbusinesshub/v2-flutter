@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/theme/elkstay_colors.dart';
 import '../../../../core/widgets/state_views.dart';
 import '../../../../data/models/stay_models.dart';
+import '../../../../l10n/app_localizations.dart';
 import '../cubit/stay_detail_cubit.dart';
 
 class StayDetailScreen extends StatefulWidget {
@@ -24,16 +25,24 @@ class _StayDetailScreenState extends State<StayDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return BlocBuilder<StayDetailCubit, StayDetailState>(
       builder: (context, state) {
         if (state.status == StayDetailStatus.loading ||
             state.status == StayDetailStatus.initial) {
           return const Scaffold(body: LoadingView());
         }
+        if (state.status == StayDetailStatus.guest) {
+          return Scaffold(
+            body: SignInRequiredView(
+              message: l10n.staySignInPrompt,
+            ),
+          );
+        }
         if (state.status == StayDetailStatus.error || state.stay == null) {
           return Scaffold(
             body: ErrorRetryView(
-              message: state.errorMessage ?? 'Something went wrong',
+              message: state.errorMessage ?? l10n.errorGeneric,
               onRetry: () =>
                   context.read<StayDetailCubit>().loadDetail(widget.stayId),
             ),
@@ -185,15 +194,16 @@ class _Sheet extends StatelessWidget {
   final StayModel stay;
   final Map<String, IconData> amenityIcons;
 
-  String get _categoryTag => switch (stay.categoryType) {
-    StayCategoryType.pgStay => "Women's PG",
-    StayCategoryType.mensHostel => "Men's Hostel",
-    StayCategoryType.womensHostel => "Women's Hostel",
-    StayCategoryType.homestay => 'Homestay',
+  String _categoryTag(AppLocalizations l10n) => switch (stay.categoryType) {
+    StayCategoryType.pgStay => l10n.womensPg,
+    StayCategoryType.mensHostel => l10n.svcMensHostel,
+    StayCategoryType.womensHostel => l10n.svcWomensHostel,
+    StayCategoryType.homestay => l10n.svcHomestay,
   };
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Transform.translate(
       offset: const Offset(0, -22),
       child: Container(
@@ -208,7 +218,7 @@ class _Sheet extends StatelessWidget {
             Row(
               children: [
                 _Tag(
-                  label: _categoryTag,
+                  label: _categoryTag(l10n),
                   bgColor: ElkStayColors.pineSoft,
                   textColor: ElkStayColors.pine,
                 ),
@@ -221,7 +231,7 @@ class _Sheet extends StatelessWidget {
                 const SizedBox(width: 7),
                 if (stay.isVerified)
                   _Tag(
-                    label: 'Verified',
+                    label: l10n.verified,
                     bgColor: const Color(0xFFE1F0E9),
                     textColor: const Color(0xFF1A7A52),
                     icon: Icons.verified,

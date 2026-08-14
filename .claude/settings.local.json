@@ -33,7 +33,8 @@
       "Bash(curl -s -o /dev/null -w '%{http_code}' https://api.github.com/repos/elkbusinesshub/v2-backend)",
       "Bash(echo \"unauthenticated v2-backend: $\\(curl -s -o /dev/null -w '%{http_code}' https://api.github.com/repos/elkbusinesshub/v2-backend\\)\")",
       "Bash(curl -s -H 'Authorization: Bearer __CMDSUB_OUTPUT__' https://api.github.com/repos/elkbusinesshub/v2-backend)",
-      "Read(//home/rafseena/Desktop/Projects/ME/elk-backend-v2/prisma/**)"
+      "Read(//home/rafseena/Desktop/Projects/ME/elk-backend-v2/prisma/**)",
+      "Bash(dart analyze *)"
     ]
   }
 }

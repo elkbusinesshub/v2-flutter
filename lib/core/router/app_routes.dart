@@ -20,10 +20,6 @@ class AppRoutes {
   static const rental = '/rental';
   static const porter = '/porter';
 
-  static const providerRegister = '/provider/register';
-  static const providerDashboard = '/provider/dashboard';
-  static const providerSchedule = '/provider/schedule';
-  static const providerEarnings = '/provider/earnings';
 
   static String serviceDetail(String serviceId) => '/service/$serviceId';
   static String booking(String serviceId) => '/booking/$serviceId';

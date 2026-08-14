@@ -1,8 +1,22 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- "Use current location" in the address picker. Coarse alone is enough to
+         name a neighbourhood; fine is requested for an accurate pickup pin. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <!-- usesCleartextTraffic allows plain-http calls to the LAN dev backend.
+         Remove (or scope via a networkSecurityConfig) once the API is served
+         over https in production. -->
     <application
-        android:label="elk_business_hub"
+        android:label="ELK"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
+        <!-- Maps SDK for Android. Injected from local.properties by
+             app/build.gradle.kts so the key is never committed. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}"/>
         <activity
             android:name=".MainActivity"
             android:exported="true"

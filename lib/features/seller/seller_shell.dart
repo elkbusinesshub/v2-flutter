@@ -5,6 +5,7 @@ import '../../data/repositories/notifications_repository.dart';
 import '../../data/repositories/marketplace_repository.dart';
 import 'cubit/seller_listings_cubit.dart';
 import 'cubit/seller_orders_cubit.dart';
+import 'cubit/seller_business_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
@@ -28,7 +29,6 @@ class _SellerShellState extends State<SellerShell> {
   AppLocalizations get l10n => AppLocalizations.of(context);
 
   _Tab _tab = _Tab.home;
-  bool _isOnline = true;
   bool _bankLinked = false;
 
   void _go(_Tab t) => setState(() => _tab = t);
@@ -133,11 +133,15 @@ class _SellerShellState extends State<SellerShell> {
       // Online toggle
       GestureDetector(
         onTap: () {
-          setState(() => _isOnline = !_isOnline);
+          // Writes through rather than flipping a local flag: a seller could
+          // otherwise believe they were offline while the backend kept them
+          // listed and taking work.
+          final next = !_isOnline;
+          context.read<SellerBusinessCubit>().setAvailable(next);
           _toast(
-            _isOnline ? '🟢' : '⚪',
-            _isOnline ? l10n.youAreOnline : l10n.youAreOffline,
-            _isOnline ? l10n.customersCanBook : l10n.noNewRequests,
+            next ? '🟢' : '⚪',
+            next ? l10n.youAreOnline : l10n.youAreOffline,
+            next ? l10n.customersCanBook : l10n.noNewRequests,
           );
         },
         child: Container(
@@ -251,6 +255,9 @@ class _SellerShellState extends State<SellerShell> {
       ),
     );
   }
+
+  /// Whether the seller is accepting work, as the server has it.
+  bool get _isOnline => context.watch<SellerBusinessCubit>().state.isAvailable;
 
   @override
   Widget build(BuildContext context) {
@@ -659,6 +666,8 @@ class _SellerShellState extends State<SellerShell> {
   // ─── Wallet ──────────────────────────────────────────────────────────────
 
   Widget _walletScreen() {
+    final business = context.watch<SellerBusinessCubit>().state;
+    final earnings = business.earnings;
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
       children: [
@@ -677,8 +686,19 @@ class _SellerShellState extends State<SellerShell> {
               Text(l10n.walletAvailableBalance, style: TextStyle(fontSize: 13, color: Color(0xFFBFE7DD), fontWeight: FontWeight.w600)),
             ]),
             const SizedBox(height: 5),
-            const Text('₹0', style: TextStyle(fontSize: 36, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -1)),
-            const Text('₹640 pending · clears in 2 days', style: TextStyle(fontSize: 12.5, color: Color(0xFFBFE7DD))),
+            // Was hardcoded ₹0 with an invented "₹640 pending". These are the
+            // seller's real earnings, from the same endpoint the provider
+            // dashboard used before the two surfaces merged.
+            Text(
+              earnings == null ? '—' : '₹${earnings.totalEarnings}',
+              style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -1),
+            ),
+            Text(
+              earnings == null
+                  ? 'Set up your business profile to track earnings'
+                  : '${earnings.completedJobs} jobs · avg ₹${earnings.avgPerJob}',
+              style: const TextStyle(fontSize: 12.5, color: Color(0xFFBFE7DD)),
+            ),
             const SizedBox(height: 18),
             Row(children: [
               Expanded(

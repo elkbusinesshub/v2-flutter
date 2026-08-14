@@ -14,6 +14,7 @@ import '../../features/elkclean/elkclean_shell.dart';
 import '../../data/repositories/locations_repository.dart';
 import '../../features/seller/cubit/seller_listings_cubit.dart';
 import '../../features/seller/cubit/seller_orders_cubit.dart';
+import '../../features/seller/cubit/seller_business_cubit.dart';
 import '../../features/seller/seller_shell.dart';
 import '../../features/addresses/cubit/addresses_cubit.dart';
 import '../../features/addresses/view/addresses_screen.dart';
@@ -56,14 +57,6 @@ import '../../features/porter/cubit/porter_cubit.dart';
 import '../../features/porter/view/porter_screen.dart';
 import '../../features/profile/cubit/profile_cubit.dart';
 import '../../features/profile/view/profile_screen.dart';
-import '../../features/provider_dashboard/cubit/provider_dashboard_cubit.dart';
-import '../../features/provider_dashboard/view/provider_dashboard_screen.dart';
-import '../../features/provider_earnings/cubit/provider_earnings_cubit.dart';
-import '../../features/provider_earnings/view/provider_earnings_screen.dart';
-import '../../features/provider_registration/cubit/provider_registration_cubit.dart';
-import '../../features/provider_registration/view/provider_registration_screen.dart';
-import '../../features/provider_schedule/cubit/provider_schedule_cubit.dart';
-import '../../features/provider_schedule/view/provider_schedule_screen.dart';
 import '../../features/rental/cubit/rental_cubit.dart';
 import '../../features/rental/view/rental_screen.dart';
 import '../../features/review/cubit/review_cubit.dart';
@@ -259,8 +252,11 @@ GoRouter buildAppRouter() {
                   // Reviews are per-booking now, so this lands on the list
                   // where a completed booking can be picked.
                   onRateServiceTap: () => context.go(AppRoutes.bookingsTab),
-                  onBecomeProviderTap: () => context.push(AppRoutes.providerRegister),
-                  onProviderDashboardTap: () => context.push(AppRoutes.providerDashboard),
+                  // One surface: a seller is the service provider, so both
+                  // entries land on the seller panel rather than a parallel
+                  // set of screens for the same person.
+                  onBecomeProviderTap: () => context.push(AppRoutes.sellerPanel),
+                  onProviderDashboardTap: () => context.push(AppRoutes.sellerPanel),
                 ),
               ),
             ),
@@ -315,6 +311,10 @@ GoRouter buildAppRouter() {
             BlocProvider(
               create: (context) =>
                   SellerOrdersCubit(context.read<MarketplaceRepository>())..load(),
+            ),
+            BlocProvider(
+              create: (context) =>
+                  SellerBusinessCubit(context.read<ProviderRepository>())..load(),
             ),
           ],
           child: SellerShell(onBack: () => context.pop()),
@@ -484,53 +484,6 @@ GoRouter buildAppRouter() {
         },
       ),
 
-      GoRoute(
-        path: AppRoutes.providerRegister,
-        builder: (context, state) => BlocProvider(
-          create: (context) => ProviderRegistrationCubit(context.read<ProviderRepository>()),
-          child: ProviderRegistrationScreen(
-            onDone: () => context.go(AppRoutes.providerDashboard),
-          ),
-        ),
-      ),
-      GoRoute(
-        path: AppRoutes.providerDashboard,
-        builder: (context, state) => BlocProvider(
-          create: (context) => ProviderDashboardCubit(
-            context.read<ProviderRepository>(),
-            context.read<AppPreferences>(),
-          ),
-          child: ProviderDashboardScreen(
-            onRegisterTap: () => context.push(AppRoutes.providerRegister),
-            onScheduleTap: () => context.push(AppRoutes.providerSchedule),
-            onEarningsTap: () => context.push(AppRoutes.providerEarnings),
-          ),
-        ),
-      ),
-      GoRoute(
-        path: AppRoutes.providerSchedule,
-        builder: (context, state) => BlocProvider(
-          create: (context) => ProviderScheduleCubit(
-            context.read<ProviderRepository>(),
-            context.read<AppPreferences>(),
-          ),
-          child: ProviderScheduleScreen(
-            onRegisterTap: () => context.push(AppRoutes.providerRegister),
-          ),
-        ),
-      ),
-      GoRoute(
-        path: AppRoutes.providerEarnings,
-        builder: (context, state) => BlocProvider(
-          create: (context) => ProviderEarningsCubit(
-            context.read<ProviderRepository>(),
-            context.read<AppPreferences>(),
-          ),
-          child: ProviderEarningsScreen(
-            onRegisterTap: () => context.push(AppRoutes.providerRegister),
-          ),
-        ),
-      ),
 
       GoRoute(
         path: AppRoutes.elkCleanHome,

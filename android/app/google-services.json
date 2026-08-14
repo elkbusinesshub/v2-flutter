@@ -1,0 +1,147 @@
+{
+  "project_info": {
+    "project_number": "244262150078",
+    "firebase_url": "https://elkbusinesshub-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "elkbusinesshub",
+    "storage_bucket": "elkbusinesshub.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:244262150078:android:87c9ac1ddf28dfde6923ef",
+        "android_client_info": {
+          "package_name": "com.elkbusinesshub.elk"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "244262150078-cn4fh3f0j6df3aj2vne4bttu3bqot125.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.elkbusinesshub.elk",
+            "certificate_hash": "0aa75fb0b28af5edc1d16671330e97d5e64dde7c"
+          }
+        },
+        {
+          "client_id": "244262150078-eegc5uq0ctcs1lc0rb3qv8n9m4cukfq1.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.elkbusinesshub.elk",
+            "certificate_hash": "b3ccf352ba3479d8ea5f976ab65924f62704ff35"
+          }
+        },
+        {
+          "client_id": "244262150078-ofnv8algnknsap089qthq2gp56eicu0t.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.elkbusinesshub.elk",
+            "certificate_hash": "71c7713b38190105074083f424e6249a31442753"
+          }
+        },
+        {
+          "client_id": "244262150078-qt7sp6h42uq2m333matdmpfrq1oamnsg.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.elkbusinesshub.elk",
+            "certificate_hash": "453c367e386ab48b99945e745f044066216a2293"
+          }
+        },
+        {
+          "client_id": "244262150078-vnfpe6om9citkj174cl517hhkg3iqh6e.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.elkbusinesshub.elk",
+            "certificate_hash": "25c272405dd4997a039e5417c0fe0b52bc5b8404"
+          }
+        },
+        {
+          "client_id": "244262150078-7u9h5o8oai4aqtt24n8sikn7p4romgb3.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBQ-buo3VQrljJAAKJ2oRKdLGq3A74hCYo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "244262150078-7u9h5o8oai4aqtt24n8sikn7p4romgb3.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "244262150078-873sgfnm3r0f7bj3cvbi7huha4r6cltb.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.infinitelab.elk"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:244262150078:android:6b5a9dd7d916d2f96923ef",
+        "android_client_info": {
+          "package_name": "com.infinitelab.elk"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "244262150078-92robbpftgj4thsvq4s3k1mnjvl5pdiv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.infinitelab.elk",
+            "certificate_hash": "0aa75fb0b28af5edc1d16671330e97d5e64dde7c"
+          }
+        },
+        {
+          "client_id": "244262150078-v035rn4eaqorjpba5rnotes18ukm0ljl.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.infinitelab.elk",
+            "certificate_hash": "25c272405dd4997a039e5417c0fe0b52bc5b8404"
+          }
+        },
+        {
+          "client_id": "244262150078-v8dgk8kgn2fpmsmv7fo4rifh18up9d9g.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.infinitelab.elk",
+            "certificate_hash": "453c367e386ab48b99945e745f044066216a2293"
+          }
+        },
+        {
+          "client_id": "244262150078-7u9h5o8oai4aqtt24n8sikn7p4romgb3.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBQ-buo3VQrljJAAKJ2oRKdLGq3A74hCYo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "244262150078-7u9h5o8oai4aqtt24n8sikn7p4romgb3.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "244262150078-873sgfnm3r0f7bj3cvbi7huha4r6cltb.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.infinitelab.elk"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

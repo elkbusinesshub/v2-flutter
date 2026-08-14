@@ -1,0 +1,14 @@
+# Codegen for lib/l10n/*.arb -> lib/l10n/app_localizations.dart.
+#
+# The generated files are checked in rather than produced into a synthetic
+# package, so `AppLocalizations` resolves in the IDE and in tests without a
+# prior `flutter gen-l10n`.
+arb-dir: lib/l10n
+template-arb-file: app_en.arb
+output-localization-file: app_localizations.dart
+output-class: AppLocalizations
+
+# English is the source language, so a key the translators have not reached
+# yet falls back to English rather than rendering blank.
+untranslated-messages-file: lib/l10n/untranslated.json
+nullable-getter: false

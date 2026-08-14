@@ -1,5 +1,5 @@
-name: elk_business_hub
-description: "A new Flutter project."
+name: elk
+description: "ELK Business Hub — UAE super-app."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+version: 1.4.0+39
 
 environment:
   sdk: ^3.11.5
@@ -30,6 +30,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -42,6 +44,13 @@ dependencies:
   dio: ^5.9.2
   flutter_svg: ^2.0.10
   google_fonts: ^6.2.1
+  flutter_secure_storage: ^10.3.1
+  socket_io_client: ^3.1.2
+  geolocator: ^14.0.3
+  google_maps_flutter: ^2.18.0
+  firebase_core: ^4.13.0
+  firebase_messaging: ^16.5.0
+  image_picker: ^1.2.3
 
 dev_dependencies:
   flutter_test:
@@ -53,6 +62,20 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+# Launcher icon, generated from the shared ELK mark. Same tool and source image
+# as the previous app so both stores show the identical icon.
+# Regenerate after changing app_icon.png:  dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+  image_path: "assets/icon/app_icon.png"
+  min_sdk_android: 21
+  # The source PNG has an alpha channel; the App Store rejects iOS icons that
+  # do. Flattened onto the mark's own white background.
+  remove_alpha_ios: true
+  background_color_ios: "#ffffff"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -64,6 +87,9 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  # Regenerates AppLocalizations from lib/l10n/*.arb on every build.
+  generate: true
 
   assets:
     - assets/icons/

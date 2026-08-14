@@ -12,13 +12,10 @@ import 'core/theme/app_theme.dart';
 import 'core/utils/app_preferences.dart';
 import 'l10n/app_localizations.dart';
 import 'data/repositories/auth_repository.dart';
-import 'data/repositories/elkclean_repository.dart';
-import 'data/repositories/elkrep_repository.dart';
 import 'data/repositories/locations_repository.dart';
 import 'data/repositories/marketplace_repository.dart';
 import 'data/repositories/places_repository.dart';
 import 'data/repositories/booking_repository.dart';
-import 'data/repositories/elkstay_repository.dart';
 import 'data/repositories/chat_repository.dart';
 import 'data/repositories/home_repository.dart';
 import 'data/repositories/language_repository.dart';
@@ -28,10 +25,8 @@ import 'data/repositories/payment_repository.dart';
 import 'data/repositories/porter_repository.dart';
 import 'data/repositories/profile_repository.dart';
 import 'data/repositories/provider_repository.dart';
-import 'data/repositories/rental_repository.dart';
 import 'data/repositories/review_repository.dart';
 import 'data/repositories/ride_repository.dart';
-import 'data/repositories/services_repository.dart';
 import 'data/repositories/tracking_repository.dart';
 import 'data/repositories/wallet_repository.dart';
 
@@ -73,7 +68,6 @@ class _AppState extends State<App> {
         RepositoryProvider(create: (_) => AuthRepository(apiClient, tokenStorage)),
         RepositoryProvider(create: (_) => LanguageRepository(apiClient)),
         RepositoryProvider(create: (_) => HomeRepository(apiClient)),
-        RepositoryProvider(create: (_) => ServicesRepository(apiClient)),
         RepositoryProvider(create: (_) => BookingRepository(apiClient)),
         RepositoryProvider(create: (_) => PaymentRepository(apiClient)),
         RepositoryProvider(create: (_) => RideRepository(apiClient)),
@@ -89,13 +83,9 @@ class _AppState extends State<App> {
             FirebasePushTokens(),
           ),
         ),
-        RepositoryProvider(create: (_) => RentalRepository(apiClient)),
         RepositoryProvider(create: (_) => PorterRepository(apiClient)),
         RepositoryProvider(create: (_) => ProfileRepository(apiClient)),
         RepositoryProvider(create: (_) => ProviderRepository(apiClient)),
-        RepositoryProvider(create: (_) => ElkStayRepository(apiClient)),
-        RepositoryProvider(create: (_) => ElkCleanRepository(apiClient)),
-        RepositoryProvider(create: (_) => ElkRepRepository(apiClient)),
         RepositoryProvider(create: (_) => LocationsRepository(apiClient)),
         RepositoryProvider(create: (_) => PlacesRepository(apiClient)),
         RepositoryProvider(create: (_) => MarketplaceRepository(apiClient)),

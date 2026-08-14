@@ -88,6 +88,10 @@ class StayDetailCubit extends Cubit<StayDetailState> {
         stay.id,
         addressText: stay.fullAddress,
         contactPhone: _preferences.userPhone ?? '',
+        // The property's own pin: unlike a job, the address here is where the
+        // listing is, not where the buyer lives.
+        lat: _ad?.lat,
+        lng: _ad?.lng,
         // Months, not rooms: the backend charges `price x quantity`, and a
         // stay is priced per month. The deposit rides alongside rather than
         // inside that total.
@@ -126,6 +130,10 @@ class StayDetailCubit extends Cubit<StayDetailState> {
         stay.id,
         addressText: stay.fullAddress,
         contactPhone: _preferences.userPhone ?? '',
+        // The property's own pin: unlike a job, the address here is where the
+        // listing is, not where the buyer lives.
+        lat: _ad?.lat,
+        lng: _ad?.lng,
         // A viewing, not a tenancy: no term, no deposit, and nothing to pay.
         isEnquiry: true,
         scheduledAt: DateTime.parse(visitAt),

@@ -67,8 +67,8 @@ class ServicesAdsAdapter {
         // Sellers give no trading history, so the page shows none rather than
         // a length of service nobody claimed.
         providerExperience: '',
-        rating: 0,
-        reviewCount: 0,
+        rating: ad.ratingAverage,
+        reviewCount: ad.ratingCount,
         duration: ad.attribute<String>('durationLabel') ?? '',
         teamSize: '',
         category: _groups[ad.categorySlug]?.$1 ?? _titleise(ad.categorySlug),

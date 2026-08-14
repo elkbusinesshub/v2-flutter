@@ -282,6 +282,9 @@ class ElkRepCubit extends Cubit<ElkRepState> {
           line.service.id,
           addressText: address.line,
           contactPhone: _preferences.userPhone ?? '',
+          // The saved address carries its pin, so tracking can show a map.
+          lat: address.lat,
+          lng: address.lng,
           quantity: line.quantity,
           scheduledAt: scheduledAt,
           // Charged once for the visit, not once per line.

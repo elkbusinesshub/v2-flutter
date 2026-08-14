@@ -58,9 +58,9 @@ class StayAdsAdapter {
       // made-up figure.
       distanceKm: 0,
       pricePerMonth: ad.price.round(),
-      // The seeded stays carried a hand-set rating. No seller sets one and no
-      // reviews reach a listing yet, so it stays unrated.
-      rating: 0,
+      // Earned, not seeded: the average of the reviews left on this
+      // listing's completed orders. Zero means nobody has rated it yet.
+      rating: ad.ratingAverage,
       // Verification was an admin flag on `stays`. Nothing grants it now.
       isVerified: false,
       amenities: [

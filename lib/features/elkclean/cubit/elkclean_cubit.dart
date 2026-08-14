@@ -290,6 +290,9 @@ class ElkCleanCubit extends Cubit<ElkCleanState> {
           line.service.id,
           addressText: address.line,
           contactPhone: _preferences.userPhone ?? '',
+          // The saved address carries its pin, so tracking can show a map.
+          lat: address.lat,
+          lng: address.lng,
           quantity: line.quantity,
           scheduledAt: scheduledAt,
           feesAmount: placed.isEmpty ? state.supplyFee.toDouble() : null,

@@ -13,7 +13,7 @@ BookingListItemModel _booking({
   required String status,
   DateTime? scheduledAt,
   double total = 85,
-  String vertical = 'services',
+  String vertical = 'marketplace',
 }) =>
     BookingListItemModel(
       id: id,
@@ -44,7 +44,7 @@ class _FakeBookingRepository implements BookingRepository {
   }
 
   @override
-  Future<void> cancelBooking(String bookingId, {String vertical = 'services'}) async {
+  Future<void> cancelBooking(String bookingId, {String vertical = 'marketplace'}) async {
     cancelledVertical = vertical;
     if (cancelError != null) throw cancelError!;
     cancelled.add(bookingId);
@@ -56,21 +56,6 @@ class _FakeBookingRepository implements BookingRepository {
           b,
     ];
   }
-
-  @override
-  Future<BookingDetailsModel> getBookingDetails(String serviceId) =>
-      throw UnimplementedError();
-
-  @override
-  Future<BookingConfirmationModel> confirmBooking({
-    required String serviceId,
-    required int day,
-    required String time,
-    required String address,
-    double? lat,
-    double? lng,
-  }) =>
-      throw UnimplementedError();
 }
 
 void main() {
@@ -127,19 +112,19 @@ void main() {
   });
 
   test('cancelling routes to the vertical that owns the booking', () async {
-    // Every vertical has its own cancel endpoint with its own rules, so a
-    // clean cancelled through /bookings/:id/cancel would 404.
+    // Porter and rides each enforce their own cancellation rules, so a porter
+    // job cancelled through the marketplace endpoint would 404.
     final repository = _FakeBookingRepository([
-      _booking(id: 'cl-1', status: 'confirmed', vertical: 'elkclean'),
+      _booking(id: 'pt-1', status: 'confirmed', vertical: 'porter'),
     ]);
     final cubit = await buildCubit(repository);
     await cubit.load();
 
-    await cubit.cancelBooking('cl-1');
-    expect(repository.cancelledVertical, 'elkclean');
+    await cubit.cancelBooking('pt-1');
+    expect(repository.cancelledVertical, 'porter');
   });
 
-  test('an unknown booking id falls back to the home-services endpoint', () async {
+  test('an unknown booking id falls back to the listing-order endpoint', () async {
     final repository = _FakeBookingRepository([
       _booking(id: '1', status: 'confirmed'),
     ]);
@@ -147,7 +132,7 @@ void main() {
     await cubit.load();
 
     await cubit.cancelBooking('does-not-exist');
-    expect(repository.cancelledVertical, 'services');
+    expect(repository.cancelledVertical, 'marketplace');
   });
 
   test('cancelling reloads so the booking moves to the Cancelled tab', () async {

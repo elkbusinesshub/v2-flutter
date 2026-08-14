@@ -59,9 +59,10 @@ class RentalAdsAdapter {
         'HYBRID' => 'Hybrid',
         _ => '',
       },
-      // The seeded cars carried a hand-set rating and a "BEST DEAL" ribbon.
-      // Sellers set neither, so engagement stands in for both rather than the
-      // screen inventing a score nobody gave.
+      // Earned from the reviews on this listing's completed hires.
+      rating: ad.ratingAverage,
+      // Sellers set no "BEST DEAL" ribbon, so engagement stands in for it
+      // rather than the screen inventing a distinction nobody gave.
       isBestDeal: ad.wishlistCount >= 5,
       badge: ad.wishlistCount >= 5 ? 'BEST DEAL' : null,
     );

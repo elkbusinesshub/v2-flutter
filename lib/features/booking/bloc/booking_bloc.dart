@@ -162,6 +162,10 @@ class BookingBloc extends Bloc<BookingEvent, BookingState> {
         details.serviceId,
         addressText: state.effectiveAddress,
         contactPhone: _preferences.userPhone ?? '',
+        // Null when the address was typed rather than picked; tracking then
+        // shows it without a map.
+        lat: state.selectedLat,
+        lng: state.selectedLng,
         scheduledAt: _instantFor(date, time),
         // The fee the screen showed, so the order and the receipt agree.
         feesAmount: _serviceFee,

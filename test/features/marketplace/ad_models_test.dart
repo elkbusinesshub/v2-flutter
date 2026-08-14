@@ -75,6 +75,30 @@ void main() {
       });
     });
 
+    group('rating', () {
+      test('reads the aggregate the backend maintains', () {
+        final ad = AdModel.fromJson({
+          'id': 'ad-7',
+          'title': 'Deep Clean',
+          'ratingAverage': 4.5,
+          'ratingCount': 12,
+        });
+
+        expect(ad.ratingAverage, 4.5);
+        expect(ad.ratingCount, 12);
+        expect(ad.isRated, isTrue);
+      });
+
+      test('an unrated listing is not a badly rated one', () {
+        // Zero with no reviews behind it must not read as a bad score — the
+        // card shows "New" instead.
+        final ad = AdModel.fromJson({'id': 'ad-8', 'title': 'New Listing'});
+
+        expect(ad.ratingAverage, 0);
+        expect(ad.isRated, isFalse);
+      });
+    });
+
     test('copyWith updates only the wishlist state', () {
       final ad = AdModel.fromJson({
         'id': 'ad-3',

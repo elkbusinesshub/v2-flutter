@@ -158,6 +158,10 @@ class RentalBookingCubit extends Cubit<RentalBookingState> {
             ? (request['deliveryAddress'] as String? ?? '')
             : (branch?.address ?? ''),
         contactPhone: _preferences.userPhone ?? '',
+        // Only a branch pickup has a pin — that is the seller's own location.
+        // A delivery address is typed, so it carries none.
+        lat: isDelivery ? null : branch?.lat,
+        lng: isDelivery ? null : branch?.lng,
         // Days, not cars: the backend charges `price × quantity`, and a
         // listing is priced per day. Sending 1 would record a three-day hire
         // at one day's rate.

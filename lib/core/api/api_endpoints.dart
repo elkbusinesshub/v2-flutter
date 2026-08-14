@@ -20,15 +20,10 @@ class ApiEndpoints {
   // ── home ──────────────────────────────────────────────────────────────
   static const String homeFeed = '/home/feed';
 
-  // ── services & bookings ───────────────────────────────────────────────
-  static const String services = '/services';
-  static String serviceDetail(String id) => '/services/$id';
-  static String serviceBookingOptions(String id) => '/services/$id/booking-options';
+  // ── bookings ──────────────────────────────────────────────────────────
+  /// Every booking the user has, whichever system holds it. Read-only —
+  /// cancelling is routed per vertical; see [BookingRepository.cancelBooking].
   static const String bookings = '/bookings';
-  static String cancelBooking(String id) => '/bookings/$id/cancel';
-  static String elkCleanCancelBooking(String id) => '/elkclean/bookings/$id/cancel';
-  static String elkRepCancelBooking(String id) => '/elkrep/bookings/$id/cancel';
-  static String rentalCancelBooking(String id) => '/rentals/bookings/$id/cancel';
 
   // ── reviews ───────────────────────────────────────────────────────────
   static String reviewTarget(String bookingId) => '/bookings/$bookingId/review-target';
@@ -80,7 +75,6 @@ class ApiEndpoints {
   static const String elkStayFavorites = '/elkstay/favorites';
   static const String elkStayBookings = '/elkstay/bookings';
   static const String elkStayVisits = '/elkstay/visits';
-  static String elkStayCancelBooking(String id) => '/elkstay/bookings/$id/cancel';
 
   // ── rentals ───────────────────────────────────────────────────────────
   static const String rentalCars = '/rentals/cars';
@@ -113,7 +107,6 @@ class ApiEndpoints {
   static const String providerSchedule = '/provider/schedule';
   static const String providerEarnings = '/provider/earnings';
   static const String providerAvailability = '/provider/availability';
-  static String providerRespondRequest(String id) => '/provider/requests/$id/respond';
 
   // ── locations ─────────────────────────────────────────────────────────
   static const String locations = '/locations';

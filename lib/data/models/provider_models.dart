@@ -34,51 +34,6 @@ class ProviderModel {
       );
 }
 
-/// A booking request shown on the Provider Dashboard.
-class ProviderRequestModel {
-  const ProviderRequestModel({
-    required this.id,
-    required this.serviceName,
-    required this.customerName,
-    required this.location,
-    required this.time,
-    required this.amount,
-    required this.status,
-  });
-
-  final String id;
-  final String serviceName;
-  final String customerName;
-  final String location;
-  final String time;
-  final double amount;
-  final ProviderRequestStatus status;
-
-  ProviderRequestModel copyWith({ProviderRequestStatus? status}) =>
-      ProviderRequestModel(
-        id: id,
-        serviceName: serviceName,
-        customerName: customerName,
-        location: location,
-        time: time,
-        amount: amount,
-        status: status ?? this.status,
-      );
-
-  factory ProviderRequestModel.fromJson(Map<String, dynamic> json) =>
-      ProviderRequestModel(
-        id: json['id'] as String,
-        serviceName: json['serviceName'] as String,
-        customerName: json['customerName'] as String,
-        location: json['location'] as String,
-        time: json['time'] as String,
-        amount: (json['amount'] as num).toDouble(),
-        status: ProviderRequestStatus.values.byName(json['status'] as String),
-      );
-}
-
-enum ProviderRequestStatus { pending, accepted, declined }
-
 /// Stat card on Provider Dashboard (Active Orders, Earnings, Rating).
 class ProviderStatModel {
   const ProviderStatModel({
@@ -163,14 +118,12 @@ class ProviderDashboardModel {
     required this.modeLabel,
     required this.isAvailable,
     required this.stats,
-    required this.requests,
   });
 
   final String businessName;
   final String modeLabel;
   final bool isAvailable;
   final List<ProviderStatModel> stats;
-  final List<ProviderRequestModel> requests;
 
   factory ProviderDashboardModel.fromJson(Map<String, dynamic> json) =>
       ProviderDashboardModel(
@@ -183,10 +136,6 @@ class ProviderDashboardModel {
                   value: e['value'] as String,
                   trend: e['trend'] as String,
                 ))
-            .toList(),
-        requests: (json['requests'] as List)
-            .map((e) =>
-                ProviderRequestModel.fromJson(e as Map<String, dynamic>))
             .toList(),
       );
 }

@@ -40,7 +40,15 @@ class _FakeMarketplace extends FakeMarketplaceRepositoryBase {
   Object? error;
 
   /// Every order placed, in the order they were placed.
-  final List<({String adId, int quantity, DateTime? scheduledAt, String address})> placed = [];
+  final List<
+      ({
+        String adId,
+        int quantity,
+        DateTime? scheduledAt,
+        String address,
+        double? lat,
+        double? lng,
+      })> placed = [];
   Object? placeError;
 
   @override
@@ -55,6 +63,8 @@ class _FakeMarketplace extends FakeMarketplaceRepositoryBase {
     String adId, {
     required String addressText,
     required String contactPhone,
+    double? lat,
+    double? lng,
     int quantity = 1,
     bool isEnquiry = false,
     DateTime? scheduledAt,
@@ -70,6 +80,8 @@ class _FakeMarketplace extends FakeMarketplaceRepositoryBase {
       quantity: quantity,
       scheduledAt: scheduledAt,
       address: addressText,
+      lat: lat,
+      lng: lng,
     ));
     if (placeError != null) throw placeError!;
     return AdOrderModel.fromJson({
@@ -271,6 +283,18 @@ void main() {
       expect(marketplace.placed.map((p) => p.adId), ['ad-1', 'ad-3']);
       expect(marketplace.placed.first.quantity, 2);
       expect(marketplace.placed.first.address, 'Villa 22');
+    });
+
+    test('sends the saved address’s pin so tracking can show a map', () async {
+      // The picker resolved a coordinate when the address was saved; dropping
+      // it here is what left every order without one to centre on.
+      await readyToBook();
+      cubit.addService(cubit.state.services.first);
+
+      await cubit.confirmBooking();
+
+      expect(marketplace.placed.single.lat, 12.9);
+      expect(marketplace.placed.single.lng, 77.6);
     });
 
     test('sends the chosen date and window as one instant', () async {

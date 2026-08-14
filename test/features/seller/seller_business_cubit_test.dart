@@ -10,7 +10,6 @@ const _dashboard = ProviderDashboardModel(
   modeLabel: 'Service Provider',
   isAvailable: true,
   stats: [],
-  requests: [],
 );
 
 const _earnings = EarningsSummaryModel(

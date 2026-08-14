@@ -169,6 +169,8 @@ class MarketplaceRepository {
     String adId, {
     required String addressText,
     required String contactPhone,
+    double? lat,
+    double? lng,
     int quantity = 1,
     bool isEnquiry = false,
     DateTime? scheduledAt,
@@ -184,6 +186,10 @@ class MarketplaceRepository {
       data: {
         'addressText': addressText,
         'contactPhone': contactPhone,
+        // Omitted for a hand-typed address: the backend takes them as optional
+        // and the tracking screen simply shows no map without them.
+        'lat': ?lat,
+        'lng': ?lng,
         // Sent only when it is not the default, so the common case stays the
         // payload it has always been.
         if (quantity != 1) 'quantity': quantity,

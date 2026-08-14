@@ -48,7 +48,7 @@ class MyBookingsCubit extends Cubit<MyBookingsState> {
           state.bookings.where((b) => b.id == bookingId).firstOrNull;
       await _repository.cancelBooking(
         bookingId,
-        vertical: booking?.vertical ?? 'services',
+        vertical: booking?.vertical ?? 'marketplace',
       );
       await load(refresh: true);
       emit(state.clearingCancellingId());

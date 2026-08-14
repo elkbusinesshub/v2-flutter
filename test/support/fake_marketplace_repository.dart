@@ -74,6 +74,8 @@ class FakeMarketplaceRepositoryBase implements MarketplaceRepository {
     String adId, {
     required String addressText,
     required String contactPhone,
+    double? lat,
+    double? lng,
     int quantity = 1,
     bool isEnquiry = false,
     DateTime? scheduledAt,

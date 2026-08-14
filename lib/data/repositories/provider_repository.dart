@@ -16,7 +16,6 @@ bool isProviderNotRegistered(Object error) =>
 ///    already exists)
 ///  * `GET  /provider/dashboard | /provider/schedule | /provider/earnings`
 ///  * `POST /provider/availability { isAvailable }` → `{ isAvailable }`
-///  * `POST /provider/requests/:id/respond { accept }` → the updated request
 ///
 /// **Every read requires a provider profile.** Without one the backend
 /// returns `403 No provider profile — register first`, which the cubits turn
@@ -39,17 +38,6 @@ class ProviderRepository {
     return (data as Map<String, dynamic>)['isAvailable'] as bool;
   }
 
-  /// Accepts or declines a booking request, returning the updated request.
-  Future<ProviderRequestModel> respondToRequest({
-    required ProviderRequestModel request,
-    required bool accept,
-  }) async {
-    final data = await _client.post(
-      ApiEndpoints.providerRespondRequest(request.id),
-      data: {'accept': accept},
-    );
-    return ProviderRequestModel.fromJson(data as Map<String, dynamic>);
-  }
 
   Future<ProviderScheduleModel> getSchedule() async {
     final data = await _client.get(ApiEndpoints.providerSchedule);

@@ -24,7 +24,7 @@ enum AdStatus {
 ///
 /// "Best sellers" is these ads ranked by engagement — wishlists first, views
 /// breaking ties — so [wishlistCount] and [viewCount] are shown on the card
-/// rather than a star rating the backend does not track.
+/// alongside [ratingAverage], which counts only listings people have rated.
 class AdModel {
   const AdModel({
     required this.id,
@@ -40,6 +40,8 @@ class AdModel {
     this.lng,
     required this.viewCount,
     required this.wishlistCount,
+    this.ratingAverage = 0,
+    this.ratingCount = 0,
     required this.isWishlisted,
     this.imageUrls = const [],
     this.status = AdStatus.active,
@@ -71,7 +73,17 @@ class AdModel {
 
   final int viewCount;
   final int wishlistCount;
+
+  /// Average of the reviews on this listing's completed orders. Meaningless
+  /// on its own — check [isRated] first, since an unrated listing is 0, not
+  /// bad.
+  final double ratingAverage;
+  final int ratingCount;
   final bool isWishlisted;
+
+  /// Whether anyone has actually rated this listing. A card shows "New"
+  /// rather than 0★ when they have not.
+  bool get isRated => ratingCount > 0;
 
   /// Presigned URLs. Empty until the seller uploads a photo.
   final List<String> imageUrls;
@@ -112,6 +124,8 @@ class AdModel {
         lng: lng,
         viewCount: viewCount,
         wishlistCount: wishlistCount ?? this.wishlistCount,
+        ratingAverage: ratingAverage,
+        ratingCount: ratingCount,
         isWishlisted: isWishlisted ?? this.isWishlisted,
         imageUrls: imageUrls,
         status: status ?? this.status,
@@ -132,6 +146,8 @@ class AdModel {
         lng: (json['lng'] as num?)?.toDouble(),
         viewCount: (json['viewCount'] as int?) ?? 0,
         wishlistCount: (json['wishlistCount'] as int?) ?? 0,
+        ratingAverage: (json['ratingAverage'] as num?)?.toDouble() ?? 0,
+        ratingCount: (json['ratingCount'] as int?) ?? 0,
         status: AdStatus.fromJson(json['status'] as String?),
         isWishlisted: (json['isWishlisted'] as bool?) ?? false,
         imageUrls: ((json['imageUrls'] as List?) ?? const []).cast<String>(),

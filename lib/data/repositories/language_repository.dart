@@ -1,31 +1,25 @@
-import '../datasources/api_client.dart';
-import '../datasources/dummy_data.dart';
+import '../../core/api/api_client.dart';
+import '../../core/api/api_endpoints.dart';
 import '../models/language_model.dart';
 
+/// Supported app languages and the user's language preference.
+///
+/// Backend contract:
+///  * `GET   /config/languages` → `[{ code, flag, name, nativeName }]`
+///  * `PATCH /users/me/language { language }` → updated ProfileDto
 class LanguageRepository {
   LanguageRepository(this._client);
 
   final ApiClient _client;
 
-  Future<List<LanguageModel>> getLanguages() {
-    return _client.simulate(
-      '/config/languages',
-      () => dummyLanguagesJson
-          .map((e) => LanguageModel(
-                code: e['code']!,
-                flag: e['flag']!,
-                name: e['name']!,
-                nativeName: e['nativeName']!,
-              ))
-          .toList(),
-    );
+  Future<List<LanguageModel>> getLanguages() async {
+    final data = await _client.get(ApiEndpoints.languages) as List;
+    return data
+        .map((e) => LanguageModel.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<void> selectLanguage(String code) {
-    return _client.simulateMutation(
-      '/users/me/language',
-      {'language': code},
-      () {},
-    );
+    return _client.patch(ApiEndpoints.profileLanguage, data: {'language': code});
   }
 }

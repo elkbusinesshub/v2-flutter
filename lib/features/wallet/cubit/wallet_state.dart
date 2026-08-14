@@ -1,6 +1,6 @@
 part of 'wallet_cubit.dart';
 
-enum WalletStatus { initial, loading, loaded, error }
+enum WalletStatus { initial, loading, loaded, guest, error }
 
 class WalletState extends Equatable {
   const WalletState({

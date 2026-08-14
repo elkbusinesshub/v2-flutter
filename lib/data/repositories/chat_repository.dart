@@ -1,42 +1,36 @@
-import '../datasources/api_client.dart';
-import '../datasources/dummy_data.dart';
+import '../../core/api/api_client.dart';
+import '../../core/api/api_endpoints.dart';
 import '../models/chat_models.dart';
 
+/// Order chat over REST. The realtime fan-out lives in [ChatSocket].
+///
+/// Backend contract:
+///  * `GET  /orders/:id/chat` → contact header + the full message list
+///  * `POST /orders/:id/chat { text }` → the persisted message, which the
+///    server also broadcasts to everyone in the order's room
+///
+/// Sending is deliberately HTTP, not a socket emit: persistence is the
+/// server's job either way, and this keeps message delivery working when the
+/// socket is down.
 class ChatRepository {
   ChatRepository(this._client);
 
   final ApiClient _client;
 
-  Future<ChatThreadModel> getChatThread(String orderId) {
-    return _client.simulate(
-      '/orders/$orderId/chat',
-      () => ChatThreadModel.fromJson(dummyChatThreadJson),
-    );
+  Future<ChatThreadModel> getChatThread(String orderId) async {
+    final data = await _client.get(ApiEndpoints.orderChat(orderId));
+    return ChatThreadModel.fromJson(data as Map<String, dynamic>);
   }
 
   /// Sends [text] and returns the persisted message echoed back by the server.
   Future<ChatMessageModel> sendMessage({
     required String orderId,
     required String text,
-  }) {
-    return _client.simulateMutation(
-      '/orders/$orderId/chat',
-      {'text': text},
-      () => ChatMessageModel(
-        id: 'm_${DateTime.now().millisecondsSinceEpoch}',
-        text: text,
-        time: _nowLabel(),
-        isOutgoing: true,
-      ),
-      delay: const Duration(milliseconds: 300),
+  }) async {
+    final data = await _client.post(
+      ApiEndpoints.orderChat(orderId),
+      data: {'text': text},
     );
-  }
-
-  String _nowLabel() {
-    final now = DateTime.now();
-    final hour = now.hour % 12 == 0 ? 12 : now.hour % 12;
-    final minute = now.minute.toString().padLeft(2, '0');
-    final period = now.hour >= 12 ? 'PM' : 'AM';
-    return '$hour:$minute $period';
+    return ChatMessageModel.fromJson(data as Map<String, dynamic>);
   }
 }

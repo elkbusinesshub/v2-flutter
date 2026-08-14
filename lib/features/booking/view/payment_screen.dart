@@ -5,6 +5,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/widgets/buttons.dart';
 import '../../../core/widgets/state_views.dart';
+import '../../../l10n/app_localizations.dart';
 import '../bloc/booking_bloc.dart';
 
 class PaymentScreen extends StatelessWidget {
@@ -14,10 +15,11 @@ class PaymentScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.grayLight,
       appBar: AppBar(
-        title: const Text('Payment'),
+        title: Text(l10n.sectionPayment),
         backgroundColor: AppColors.dark,
         foregroundColor: Colors.white,
         leading: IconButton(
@@ -50,7 +52,7 @@ class PaymentScreen extends StatelessWidget {
                       child: Column(
                         children: [
                           Text(
-                            'Amount to Pay',
+                            l10n.amountToPay,
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.white.withValues(alpha: 0.85),
@@ -58,7 +60,7 @@ class PaymentScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            'AED ${details.pricing.total.toStringAsFixed(0)}',
+                            '₹${details.pricing.total.toStringAsFixed(0)}',
                             style: const TextStyle(
                               fontSize: 32,
                               fontWeight: FontWeight.w800,
@@ -77,8 +79,8 @@ class PaymentScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    const Text(
-                      'Select Payment Method',
+                    Text(
+                      l10n.selectPaymentMethod,
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -155,7 +157,7 @@ class PaymentScreen extends StatelessWidget {
                     if (state.status == BookingStatus.error) ...[
                       const SizedBox(height: 8),
                       Text(
-                        state.errorMessage ?? 'Something went wrong',
+                        state.errorMessage ?? l10n.errorGeneric,
                         style: const TextStyle(fontSize: 12, color: AppColors.danger),
                       ),
                     ],
@@ -177,7 +179,7 @@ class PaymentScreen extends StatelessWidget {
                   ],
                 ),
                 child: PrimaryButton(
-                  label: 'Pay AED ${details.pricing.total.toStringAsFixed(0)}',
+                  label: 'Pay ₹${details.pricing.total.toStringAsFixed(0)}',
                   isLoading: state.status == BookingStatus.processing,
                   onPressed: state.canSubmitPayment
                       ? () => context.read<BookingBloc>().add(const PaymentSubmitted())

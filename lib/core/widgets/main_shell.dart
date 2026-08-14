@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/account_switcher/account_switcher_sheet.dart';
+import '../../l10n/app_localizations.dart';
 import '../router/app_routes.dart';
 
 class MainShell extends StatelessWidget {
@@ -9,11 +10,11 @@ class MainShell extends StatelessWidget {
 
   final StatefulNavigationShell navigationShell;
 
-  static const _items = [
-    (Icons.home_rounded,                  Icons.home_outlined,                  'Home'),
-    (Icons.calendar_today_rounded,        Icons.calendar_today_outlined,         'Bookings'),
-    (Icons.account_balance_wallet_rounded, Icons.account_balance_wallet_outlined, 'Wallet'),
-    (Icons.person_rounded,                 Icons.person_outline,                  'Profile'),
+  static List<(IconData, IconData, String)> _itemsFor(AppLocalizations l10n) => [
+    (Icons.home_rounded,                   Icons.home_outlined,                   l10n.navHome),
+    (Icons.calendar_today_rounded,         Icons.calendar_today_outlined,         l10n.navBookings),
+    (Icons.account_balance_wallet_rounded, Icons.account_balance_wallet_outlined, l10n.navWallet),
+    (Icons.person_rounded,                 Icons.person_outline,                  l10n.navProfile),
   ];
 
   @override
@@ -87,6 +88,8 @@ class _BottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final items = MainShell._itemsFor(AppLocalizations.of(context));
+
     return Container(
       padding: EdgeInsets.fromLTRB(16, 10, 16, MediaQuery.of(context).padding.bottom + 10),
       decoration: const BoxDecoration(
@@ -107,8 +110,8 @@ class _BottomNav extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: List.generate(MainShell._items.length, (i) {
-            final (active, inactive, label) = MainShell._items[i];
+          children: List.generate(items.length, (i) {
+            final (active, inactive, label) = items[i];
             final isOn = currentIndex == i;
             return GestureDetector(
               behavior: HitTestBehavior.opaque,

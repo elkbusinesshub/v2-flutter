@@ -1,6 +1,6 @@
 part of 'service_detail_cubit.dart';
 
-enum ServiceDetailStatus { initial, loading, loaded, error }
+enum ServiceDetailStatus { initial, loading, loaded, error, guest }
 
 class ServiceDetailState extends Equatable {
   const ServiceDetailState({

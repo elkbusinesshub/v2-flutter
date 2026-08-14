@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/location/current_location.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/buttons.dart';
+import '../../../l10n/app_localizations.dart';
 import '../cubit/onboarding_cubit.dart';
 
 class _OnboardPage {
@@ -17,26 +19,23 @@ class _OnboardPage {
   final String description;
 }
 
-const _pages = [
-  _OnboardPage(
-    emoji: '🏙️',
-    title: 'All Your Services, One App',
-    description:
-        'Book rides, cleaning, rentals, and more — from verified providers in your city. Fast, reliable, trusted.',
-  ),
-  _OnboardPage(
-    emoji: '📍',
-    title: 'Real-Time Tracking & Chat',
-    description:
-        'Follow your provider live on the map and chat directly with them for a smooth, transparent experience.',
-  ),
-  _OnboardPage(
-    emoji: '💳',
-    title: 'Secure Payments & Rewards',
-    description:
-        'Pay safely with your wallet, card, or cash, and earn reward points on every booking you make.',
-  ),
-];
+List<_OnboardPage> _pagesFor(AppLocalizations l10n) => [
+      _OnboardPage(
+        emoji: '🏙️',
+        title: l10n.onboardServicesTitle,
+        description: l10n.onboardServicesBody,
+      ),
+      _OnboardPage(
+        emoji: '📍',
+        title: l10n.onboardTrackingTitle,
+        description: l10n.onboardTrackingBody,
+      ),
+      _OnboardPage(
+        emoji: '💳',
+        title: l10n.onboardPaymentsTitle,
+        description: l10n.onboardPaymentsBody,
+      ),
+    ];
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key, required this.onFinished});
@@ -64,14 +63,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Future<void> _finish() async {
     await context.read<OnboardingCubit>().complete();
+    // Asked once here so pickup addresses are pre-filled everywhere from the
+    // first booking. Declining is fine — every screen falls back to the picker.
+    await requestLocationPermissionOnce();
+    if (!mounted) return;
     widget.onFinished();
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final pages = _pagesFor(l10n);
+
     return BlocBuilder<OnboardingCubit, OnboardingState>(
       builder: (context, state) {
-        final isLast = state.pageIndex == _pages.length - 1;
+        final isLast = state.pageIndex == pages.length - 1;
         return Scaffold(
           backgroundColor: Colors.white,
           body: Column(
@@ -89,11 +95,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     ),
                     PageView.builder(
                       controller: _controller,
-                      itemCount: _pages.length,
+                      itemCount: pages.length,
                       onPageChanged: context.read<OnboardingCubit>().pageChanged,
                       itemBuilder: (context, index) => Center(
                         child: Text(
-                          _pages[index].emoji,
+                          pages[index].emoji,
                           style: const TextStyle(fontSize: 88),
                         ),
                       ),
@@ -104,7 +110,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       right: 0,
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        children: List.generate(_pages.length, (i) {
+                        children: List.generate(pages.length, (i) {
                           final active = i == state.pageIndex;
                           return AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
@@ -131,7 +137,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _pages[state.pageIndex].title,
+                        pages[state.pageIndex].title,
                         style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w700,
@@ -140,7 +146,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        _pages[state.pageIndex].description,
+                        pages[state.pageIndex].description,
                         style: const TextStyle(
                           fontSize: 14,
                           color: AppColors.gray,
@@ -156,7 +162,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 child: Column(
                   children: [
                     PrimaryButton(
-                      label: isLast ? 'Get Started' : 'Next',
+                      label: isLast ? l10n.getStarted : l10n.commonNext,
                       onPressed: () {
                         if (isLast) {
                           _finish();
@@ -169,16 +175,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       },
                     ),
                     const SizedBox(height: 8),
-                    SecondaryButton(label: 'Sign In', onPressed: _finish),
+                    SecondaryButton(label: l10n.signIn, onPressed: _finish),
                     const SizedBox(height: 12),
                     Text.rich(
                       TextSpan(
-                        text: 'By continuing you agree to our ',
+                        text: l10n.byContinuingYouAgree,
                         style: const TextStyle(fontSize: 11, color: Color(0xFFBBBBBB)),
-                        children: const [
+                        children: [
                           TextSpan(
-                            text: 'Terms & Conditions',
-                            style: TextStyle(color: AppColors.teal, fontWeight: FontWeight.w600),
+                            text: l10n.termsAndConditions,
+                            style: const TextStyle(
+                                color: AppColors.teal,
+                                fontWeight: FontWeight.w600),
                           ),
                         ],
                       ),

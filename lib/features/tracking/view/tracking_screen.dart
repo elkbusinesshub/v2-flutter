@@ -5,8 +5,10 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/widgets/badges.dart';
 import '../../../core/widgets/buttons.dart';
+import '../../../core/widgets/live_map_view.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../../data/models/order_models.dart';
+import '../../../l10n/app_localizations.dart';
 import '../cubit/tracking_cubit.dart';
 
 class TrackingScreen extends StatefulWidget {
@@ -26,6 +28,8 @@ class TrackingScreen extends StatefulWidget {
 }
 
 class _TrackingScreenState extends State<TrackingScreen> {
+  AppLocalizations get l10n => AppLocalizations.of(context);
+
   @override
   void initState() {
     super.initState();
@@ -36,8 +40,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Cancel Order'),
-        content: const Text('Are you sure you want to cancel this order?'),
+        title: Text(l10n.cancelOrder),
+        content: Text(l10n.cancelOrderConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
@@ -45,23 +49,30 @@ class _TrackingScreenState extends State<TrackingScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Yes, Cancel', style: TextStyle(color: AppColors.danger)),
+            child: Text(l10n.yesCancel, style: const TextStyle(color: AppColors.danger)),
           ),
         ],
       ),
     );
 
     if (confirmed != true || !mounted) return;
-    await context.read<TrackingCubit>().cancelOrder(widget.orderId);
-    if (mounted) widget.onCancelled();
+    final result = await context.read<TrackingCubit>().cancelOrder(widget.orderId);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(result.message)));
+    // Only leave the screen when the order really was cancelled — a rejected
+    // cancel used to navigate away as if it had succeeded.
+    if (result.ok) widget.onCancelled();
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.grayLight,
       appBar: AppBar(
-        title: const Text('Track Order'),
+        title: Text(l10n.trackOrder),
         backgroundColor: AppColors.dark,
         foregroundColor: Colors.white,
       ),
@@ -71,9 +82,14 @@ class _TrackingScreenState extends State<TrackingScreen> {
               state.status == TrackingStatus.initial) {
             return const LoadingView();
           }
+          if (state.status == TrackingStatus.guest) {
+            return SignInRequiredView(
+              message: l10n.trackSignInPrompt,
+            );
+          }
           if (state.status == TrackingStatus.error || state.tracking == null) {
             return ErrorRetryView(
-              message: state.errorMessage ?? 'Something went wrong',
+              message: state.errorMessage ?? l10n.errorGeneric,
               onRetry: () => context.read<TrackingCubit>().loadTracking(widget.orderId),
             );
           }
@@ -133,20 +149,37 @@ class _TrackingScreenState extends State<TrackingScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Container(
-                      height: 160,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        gradient: AppColors.tealPromo,
+                    // Where the job is, on a real map. Was a teal gradient with
+                    // a map glyph — decoration, not a location. Older bookings
+                    // carry no coordinate, so it falls back to that gradient.
+                    if (tracking.lat != null && tracking.lng != null)
+                      LiveMapView(
+                        points: [
+                          MapPoint(
+                            lat: tracking.lat!,
+                            lng: tracking.lng!,
+                            kind: MapPointKind.place,
+                            label: tracking.addressText,
+                          ),
+                        ],
+                        height: 160,
                         borderRadius: BorderRadius.circular(AppRadius.lg),
+                      )
+                    else
+                      Container(
+                        height: 160,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          gradient: AppColors.tealPromo,
+                          borderRadius: BorderRadius.circular(AppRadius.lg),
+                        ),
+                        child: const Center(
+                          child: Icon(Icons.map_outlined, color: Colors.white, size: 48),
+                        ),
                       ),
-                      child: const Center(
-                        child: Icon(Icons.map_outlined, color: Colors.white, size: 48),
-                      ),
-                    ),
                     const SizedBox(height: 20),
-                    const Text(
-                      'Order Status',
+                    Text(
+                      l10n.orderStatus,
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -191,7 +224,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                   children: [
                     Expanded(
                       child: OutlineDarkButton(
-                        label: 'Chat with Provider',
+                        label: l10n.chatWithProvider,
                         icon: const Icon(Icons.chat_bubble_outline, size: 18),
                         onPressed: widget.onChatTap,
                       ),
@@ -218,7 +251,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                                     valueColor: AlwaysStoppedAnimation(AppColors.danger),
                                   ),
                                 )
-                              : const Text('Cancel Order',
+                              : Text(l10n.cancelOrder,
                                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
                         ),
                       ),

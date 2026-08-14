@@ -5,10 +5,15 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../../data/models/payment_models.dart';
+import '../../../l10n/app_localizations.dart';
 import '../cubit/provider_earnings_cubit.dart';
 
 class ProviderEarningsScreen extends StatefulWidget {
-  const ProviderEarningsScreen({super.key});
+  const ProviderEarningsScreen({super.key, required this.onRegisterTap});
+
+  /// Opens provider registration when the backend says there is no provider
+  /// profile yet.
+  final VoidCallback onRegisterTap;
 
   @override
   State<ProviderEarningsScreen> createState() => _ProviderEarningsScreenState();
@@ -23,10 +28,11 @@ class _ProviderEarningsScreenState extends State<ProviderEarningsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.grayLight,
       appBar: AppBar(
-        title: const Text('Earnings'),
+        title: Text(l10n.earnings),
         backgroundColor: AppColors.dark,
         foregroundColor: Colors.white,
       ),
@@ -36,9 +42,17 @@ class _ProviderEarningsScreenState extends State<ProviderEarningsScreen> {
               state.status == ProviderEarningsStatus.initial) {
             return const LoadingView();
           }
+          if (state.status == ProviderEarningsStatus.guest) {
+            return SignInRequiredView(
+              message: l10n.providerSignInPrompt,
+            );
+          }
+          if (state.status == ProviderEarningsStatus.notRegistered) {
+            return RegistrationRequiredView(onRegister: widget.onRegisterTap);
+          }
           if (state.status == ProviderEarningsStatus.error || state.summary == null) {
             return ErrorRetryView(
-              message: state.errorMessage ?? 'Something went wrong',
+              message: state.errorMessage ?? l10n.errorGeneric,
               onRetry: () => context.read<ProviderEarningsCubit>().loadEarnings(),
             );
           }
@@ -64,7 +78,7 @@ class _ProviderEarningsScreenState extends State<ProviderEarningsScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'AED ${summary.totalEarnings.toStringAsFixed(0)}',
+                      '₹${summary.totalEarnings.toStringAsFixed(0)}',
                       style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: Colors.white),
                     ),
                     const SizedBox(height: 6),
@@ -80,7 +94,7 @@ class _ProviderEarningsScreenState extends State<ProviderEarningsScreen> {
                 children: [
                   Expanded(
                     child: _MetricCard(
-                      label: 'Completed Jobs',
+                      label: l10n.completedJobs,
                       value: '${summary.completedJobs}',
                       trend: summary.completedJobsTrend,
                     ),
@@ -88,17 +102,17 @@ class _ProviderEarningsScreenState extends State<ProviderEarningsScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _MetricCard(
-                      label: 'Avg per Job',
-                      value: 'AED ${summary.avgPerJob.toStringAsFixed(0)}',
+                      label: l10n.avgPerJob,
+                      value: '₹${summary.avgPerJob.toStringAsFixed(0)}',
                       trend: summary.avgPerJobTrend,
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 24),
-              const Text(
-                'Recent Transactions',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.dark),
+              Text(
+                l10n.recentTransactions,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.dark),
               ),
               const SizedBox(height: 12),
               Container(
@@ -202,7 +216,7 @@ class _TransactionTile extends StatelessWidget {
                 ),
               ),
               Text(
-                '${transaction.isCredit ? '+' : '-'} AED ${transaction.amount.toStringAsFixed(0)}',
+                '${transaction.isCredit ? '+' : '-'} ₹${transaction.amount.toStringAsFixed(0)}',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,

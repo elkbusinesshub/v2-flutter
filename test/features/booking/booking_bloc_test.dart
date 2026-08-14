@@ -3,76 +3,69 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:elk/core/errors/api_exception.dart';
 import 'package:elk/core/utils/app_preferences.dart';
+import 'package:elk/data/models/ad_models.dart';
 import 'package:elk/data/models/booking_models.dart';
 import 'package:elk/data/models/payment_models.dart';
-import 'package:elk/data/repositories/booking_repository.dart';
 import 'package:elk/data/repositories/payment_repository.dart';
 import 'package:elk/features/booking/bloc/booking_bloc.dart';
 
-const _details = BookingDetailsModel(
-  serviceId: 'svc-1',
-  serviceName: 'Deep Home Cleaning',
-  dates: [DateSlotModel(day: 28, weekday: 'Tue')],
-  timeSlots: [TimeSlotModel(time: '10:00', available: true)],
-  address: '',
-  pricing: PriceBreakdownModel(
-    serviceFee: 85,
-    promoCode: null,
-    promoDiscount: 0,
-    total: 85,
-  ),
-);
+import '../../support/fake_marketplace_repository.dart';
 
 const _methods = [
   PaymentMethodModel(id: 'wallet', icon: '💳', label: 'ELK Wallet', subLabel: 'Balance: ₹0', colorHex: 0xffe0f7f5),
   PaymentMethodModel(id: 'cash', icon: '💵', label: 'Cash on Delivery', subLabel: 'Pay at service completion', colorHex: 0xfffef3c7),
 ];
 
-const _confirmation = BookingConfirmationModel(
-  bookingReference: '#ELK-2026-12345',
-  serviceName: 'Deep Home Cleaning',
-  dateTimeLabel: 'Tue 28, 10:00',
-  providerName: 'Royal Shine ✓',
-  amountPaid: 85,
-);
-
-class _FakeBookingRepository implements BookingRepository {
+class _FakeMarketplace extends FakeMarketplaceRepositoryBase {
   Object? detailsError;
   Object? confirmError;
   String? lastAddress;
-  double? lastLat;
-  double? lastLng;
-  BookingDetailsModel details = _details;
+  DateTime? lastScheduledAt;
+  double? lastFees;
+
+  AdModel ad = AdModel.fromJson({
+    'id': 'svc-1',
+    'title': 'Deep Home Cleaning',
+    'sellerName': 'Royal Shine',
+    'categorySlug': 'cleaning',
+    'price': 85,
+    'location': 'Koramangala, Bengaluru',
+  });
 
   @override
-  Future<BookingDetailsModel> getBookingDetails(String serviceId) async {
+  Future<AdModel> getAd(String id) async {
     if (detailsError != null) throw detailsError!;
-    return details;
+    return ad;
   }
 
   @override
-  Future<BookingConfirmationModel> confirmBooking({
-    required String serviceId,
-    required int day,
-    required String time,
-    required String address,
-    double? lat,
-    double? lng,
+  Future<AdOrderModel> placeOrder(
+    String adId, {
+    required String addressText,
+    required String contactPhone,
+    int quantity = 1,
+    bool isEnquiry = false,
+    DateTime? scheduledAt,
+    DateTime? endAt,
+    int? durationMonths,
+    double? depositAmount,
+    double? feesAmount,
+    double? taxAmount,
+    String? note,
   }) async {
-    lastAddress = address;
-    lastLat = lat;
-    lastLng = lng;
+    lastAddress = addressText;
+    lastScheduledAt = scheduledAt;
+    lastFees = feesAmount;
     if (confirmError != null) throw confirmError!;
-    return _confirmation;
+    return AdOrderModel.fromJson({
+      'id': 'o-1',
+      'code': 'ELK-A-12345',
+      'adId': adId,
+      'status': 'NEW',
+      'amount': 85,
+      'serviceName': 'Deep Home Cleaning',
+    });
   }
-
-  // Not part of the booking flow — covered by my_bookings_cubit_test.dart.
-  @override
-  Future<List<BookingListItemModel>> getBookings() => throw UnimplementedError();
-
-  @override
-  Future<void> cancelBooking(String bookingId, {String vertical = 'services'}) =>
-      throw UnimplementedError();
 }
 
 class _FakePaymentRepository implements PaymentRepository {
@@ -95,7 +88,7 @@ class _FakePaymentRepository implements PaymentRepository {
 }
 
 void main() {
-  late _FakeBookingRepository bookingRepository;
+  late _FakeMarketplace bookingRepository;
   late _FakePaymentRepository paymentRepository;
 
   Future<BookingBloc> buildBloc({Map<String, Object> prefs = const {}}) async {
@@ -123,7 +116,7 @@ void main() {
   }
 
   setUp(() {
-    bookingRepository = _FakeBookingRepository();
+    bookingRepository = _FakeMarketplace();
     paymentRepository = _FakePaymentRepository();
   });
 
@@ -132,8 +125,18 @@ void main() {
       ..add(const BookingDetailsRequested('svc-1'));
     await expectLater(
       bloc.stream,
+      // The dates and windows are generated from today, so the details cannot
+      // be compared against a fixed fixture any more.
       emitsThrough(predicate<BookingState>(
-        (s) => s.status == BookingStatus.ready && s.details == _details,
+        (s) =>
+            s.status == BookingStatus.ready &&
+            s.details?.serviceName == 'Deep Home Cleaning' &&
+            s.details!.dates.length == 7 &&
+            s.details!.timeSlots.isNotEmpty &&
+            // The buyer picks where the job happens; the seller's locality is
+            // not an answer to that.
+            s.details!.address.isEmpty &&
+            s.details!.pricing.total == 95,
       )),
     );
   });
@@ -177,15 +180,19 @@ void main() {
     await expectLater(
       bloc.stream,
       emitsThrough(predicate<BookingState>(
-        (s) => s.step == BookingStep.confirmed && s.confirmation == _confirmation,
+        (s) =>
+            s.step == BookingStep.confirmed &&
+            s.confirmation?.bookingReference == 'ELK-A-12345' &&
+            s.confirmation?.providerName == 'Royal Shine',
       )),
     );
     expect(paymentRepository.lastMethodId, 'cash');
     expect(bookingRepository.lastAddress, 'Marina Walk, Tower 3');
-    // Sent so the tracking screen can put the job on a map; the booking used
-    // to carry the text alone.
-    expect(bookingRepository.lastLat, 25.0785);
-    expect(bookingRepository.lastLng, 55.1403);
+    // The chosen day and window reach the order as one instant.
+    expect(bookingRepository.lastScheduledAt!.day, 28);
+    expect(bookingRepository.lastScheduledAt!.hour, 10);
+    // The fee the screen showed, so the order and the receipt agree.
+    expect(bookingRepository.lastFees, 10);
   });
 
   test('books a hand-typed address with no coordinates', () async {
@@ -208,9 +215,12 @@ void main() {
     );
 
     // No pin is better than a guessed one — the booking still goes through.
+    //
+    // The coordinates the picker resolves no longer reach the order: an
+    // ad_order stores address text only, so the map on the tracking screen
+    // has nothing to centre on. Recorded as a known loss rather than adding
+    // columns nothing reads yet.
     expect(bookingRepository.lastAddress, 'Behind the old post office');
-    expect(bookingRepository.lastLat, isNull);
-    expect(bookingRepository.lastLng, isNull);
   });
 
   test('surfaces a friendly error when the charge fails', () async {

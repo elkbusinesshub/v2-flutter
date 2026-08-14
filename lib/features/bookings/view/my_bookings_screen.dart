@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
+
+import '../../../core/widgets/state_views.dart';
+import '../../../data/models/booking_models.dart';
+import '../../../l10n/app_localizations.dart';
+import '../cubit/my_bookings_cubit.dart';
 
 // ── design tokens ──────────────────────────────────────────────────────────
 const _t7  = Color(0xFF0F6E60);
@@ -31,55 +38,36 @@ const _hGrad = LinearGradient(
 // ── internal screens ───────────────────────────────────────────────────────
 enum _Sn { list, detail }
 
-// ── booking model ──────────────────────────────────────────────────────────
-class _BK {
-  _BK({
-    required this.id,
-    required this.title,
-    required this.vendor,
-    required this.cat,
-    required this.ill,
-    required this.status,
-    required this.date,
-    required this.time,
-    required this.addr,
-    required this.svc,
-    required this.fee,
-    required this.vat,
-    required this.total,
-    required this.method,
-    this.rated = false,
-  });
-
-  final String id, title, vendor, cat, addr;
-  final IconData ill;
-  final int svc, fee, vat, total;
-  String status, date, time, method;
-  bool rated;
-}
-
 // ── status style ───────────────────────────────────────────────────────────
 typedef _SS = ({String label, Color fg, Color bg});
-_SS _ss(String s) => switch (s) {
-  'confirmed' => (label: 'Confirmed',      fg: _t7,  bg: _t05),
-  'pending'   => (label: 'Pending vendor', fg: _yam, bg: _y05),
-  'completed' => (label: 'Completed',      fg: _grn, bg: _g05),
-  'cancelled' => (label: 'Cancelled',      fg: _red, bg: _r05),
-  _           => (label: 'Unknown',        fg: _ink4, bg: _chip),
+_SS _ss(String s, AppLocalizations l10n) => switch (s) {
+  'confirmed' => (label: l10n.statusConfirmed,     fg: _t7,  bg: _t05),
+  'pending'   => (label: l10n.statusPendingVendor, fg: _yam, bg: _y05),
+  'completed' => (label: l10n.statusCompleted,     fg: _grn, bg: _g05),
+  'cancelled' => (label: l10n.statusCancelled,     fg: _red, bg: _r05),
+  _           => (label: l10n.statusUnknown,       fg: _ink4, bg: _chip),
 };
 
-// ── tab → statuses ─────────────────────────────────────────────────────────
-const _tabSt = {
-  'upcoming':  {'confirmed', 'pending'},
-  'completed': {'completed'},
-  'cancelled': {'cancelled'},
-};
+String _aed(double v) =>
+    '₹${v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2)}';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SCREEN
 // ═══════════════════════════════════════════════════════════════════════════
 class MyBookingsScreen extends StatefulWidget {
-  const MyBookingsScreen({super.key});
+  const MyBookingsScreen({
+    super.key,
+    required this.onRateTap,
+    required this.onTrackTap,
+  });
+
+  /// Opens the rating screen for a completed booking; resolves to `true` once
+  /// a review was actually submitted.
+  final Future<bool> Function(String bookingId) onRateTap;
+
+  /// Opens the tracking timeline for an upcoming booking.
+  final void Function(String bookingId) onTrackTap;
+
   @override
   State<MyBookingsScreen> createState() => _State();
 }
@@ -98,21 +86,38 @@ class _State extends State<MyBookingsScreen> {
   }
 
   // ── data ─────────────────────────────────────────────────────────────────
-  final List<_BK> _bks = [
-    _BK(id: 'ELK-7F3KQ', title: 'Deep Home Clean', vendor: 'Royal Shine', cat: 'Cleaning',   ill: Icons.cleaning_services_rounded, status: 'confirmed', date: 'Today',       time: '11:00 AM',    addr: 'Tower 3, Apt 1204, Al Reem Island', svc: 72,  fee: 5,  vat: 4,  total: 81,  method: 'Card ••• 1111'),
-    _BK(id: 'ELK-2M9PL', title: 'Airport Transfer', vendor: 'SpeedRide',   cat: 'Taxi/Ride',  ill: Icons.local_taxi_rounded,         status: 'pending',   date: 'Tomorrow',    time: '6:30 AM',     addr: 'Pickup: Marina Gate 3',             svc: 12,  fee: 2,  vat: 1,  total: 15,  method: 'ELK Wallet'),
-    _BK(id: 'ELK-5KD1A', title: 'AC Repair',        vendor: 'Express Fix', cat: 'Repair',     ill: Icons.build_rounded,              status: 'confirmed', date: 'Sat 5 Jul',   time: '2:00 PM',     addr: 'Villa 22, Al Reem Island',          svc: 40,  fee: 5,  vat: 2,  total: 47,  method: 'Card ••• 1111'),
-    _BK(id: 'ELK-8QW3E', title: 'Elite ELK Stay',   vendor: 'Elite Res.',  cat: 'ELK Stay',   ill: Icons.apartment_rounded,          status: 'completed', date: '20–24 Jun',   time: 'Check-in 2 PM', addr: 'Downtown, Tower 4',               svc: 840, fee: 20, vat: 20, total: 880, method: 'Card ••• 1111', rated: false),
-    _BK(id: 'ELK-3RT7Y', title: 'Porter Move',      vendor: 'QuickMove',   cat: 'Porter',     ill: Icons.inventory_2_rounded,        status: 'completed', date: '28 Jun',      time: '10:00 AM',    addr: 'Marina → Downtown',                 svc: 58,  fee: 5,  vat: 2,  total: 65,  method: 'Cash',         rated: true),
-    _BK(id: 'ELK-9ZC4U', title: 'Toyota Camry',     vendor: 'ELK Rentals', cat: 'Car Rental', ill: Icons.directions_car_rounded,     status: 'cancelled', date: '15 Jun',      time: 'Full day',    addr: 'Pickup: Business Bay',              svc: 199, fee: 0,  vat: 0,  total: 199, method: 'Refunded to Wallet'),
-  ];
+  MyBookingsCubit get _cubit => context.read<MyBookingsCubit>();
 
-  // ── tab + current ─────────────────────────────────────────────────────────
-  String _tab = 'upcoming';
-  late _BK _cur = _bks.first;
+  /// The detail screen tracks an id, not an instance — every reload rebuilds
+  /// the models, so holding one would show a stale copy after a cancel.
+  String? _curId;
 
-  List<_BK> get _vis => _bks.where((b) => (_tabSt[_tab] ?? {}).contains(b.status)).toList();
-  int _cnt(String t) => _bks.where((b) => (_tabSt[t] ?? {}).contains(b.status)).length;
+  BookingListItemModel? _curOf(MyBookingsState state) =>
+      state.bookings.where((b) => b.id == _curId).firstOrNull;
+
+  /// Whether this tab was the visible one on the last dependency change.
+  bool _wasVisible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _cubit.load();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // The bottom-nav branches live in an IndexedStack and stay mounted, so
+    // initState runs once and the list would still show whatever it held when
+    // the tab was first opened — a booking made afterwards never appeared.
+    // go_router wraps each branch in TickerMode(enabled: isActive), which makes
+    // this a dependency that flips exactly when the tab becomes visible.
+    final visible = TickerMode.valuesOf(context).enabled;
+    if (visible && !_wasVisible) {
+      _cubit.load(refresh: true);
+    }
+    _wasVisible = visible;
+  }
 
   // ── toast ────────────────────────────────────────────────────────────────
   void _toast(String msg) {
@@ -134,32 +139,41 @@ class _State extends State<MyBookingsScreen> {
   // ── build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (_, _) => _pop(),
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 260),
-        transitionBuilder: (child, anim) => FadeTransition(
-          opacity: anim,
-          child: SlideTransition(
-            position: Tween(begin: const Offset(0.05, 0), end: Offset.zero).animate(
-              CurvedAnimation(parent: anim, curve: Curves.easeOut),
+    return BlocBuilder<MyBookingsCubit, MyBookingsState>(
+      builder: (context, state) {
+        // The booking can vanish from under the detail screen (e.g. a reload
+        // after cancelling), so fall back to the list rather than blank out.
+        final current = _curOf(state);
+        final showDetail = _sn == _Sn.detail && current != null;
+
+        return PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (_, _) => _pop(),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 260),
+            transitionBuilder: (child, anim) => FadeTransition(
+              opacity: anim,
+              child: SlideTransition(
+                position: Tween(begin: const Offset(0.05, 0), end: Offset.zero).animate(
+                  CurvedAnimation(parent: anim, curve: Curves.easeOut),
+                ),
+                child: child,
+              ),
             ),
-            child: child,
+            child: KeyedSubtree(
+              key: ValueKey(showDetail),
+              child: showDetail ? _detailScreen(state, current) : _listScreen(state),
+            ),
           ),
-        ),
-        child: KeyedSubtree(
-          key: ValueKey(_sn),
-          child: _sn == _Sn.list ? _listScreen() : _detailScreen(),
-        ),
-      ),
+        );
+      },
     );
   }
 
   // ═══════════════════════════════════════════════════════════════════════
   // LIST SCREEN
   // ═══════════════════════════════════════════════════════════════════════
-  Widget _listScreen() {
+  Widget _listScreen(MyBookingsState state) {
     final top = MediaQuery.of(context).padding.top;
     return Scaffold(
       backgroundColor: _bg,
@@ -182,7 +196,7 @@ class _State extends State<MyBookingsScreen> {
               ),
             ),
             const SizedBox(width: 13),
-            Text('My Bookings', style: GoogleFonts.nunito(
+            Text(AppLocalizations.of(context).myBookingsTitle, style: GoogleFonts.nunito(
               fontSize: 19, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.3,
             )),
             const Spacer(),
@@ -195,45 +209,78 @@ class _State extends State<MyBookingsScreen> {
           padding: const EdgeInsets.fromLTRB(18, 14, 18, 4),
           child: Row(children: [
             for (final t in ['upcoming', 'completed', 'cancelled']) ...[
-              Expanded(child: _Tab(label: _tabLabel(t), count: _cnt(t), active: _tab == t, onTap: () => setState(() => _tab = t))),
+              Expanded(child: _Tab(
+                label: _tabLabel(t),
+                count: state.countFor(t),
+                active: state.tab == t,
+                onTap: () => _cubit.selectTab(t),
+              )),
               if (t != 'cancelled') const SizedBox(width: 8),
             ],
           ]),
         ),
         // list
-        Expanded(
-          child: _vis.isEmpty
-              ? _emptyState()
-              : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
-                  itemCount: _vis.length,
-                  itemBuilder: (_, i) {
-                    final b = _vis[i];
-                    return _Card(
-                      bk: b,
-                      onTap: () { _cur = b; _push(_Sn.detail); },
-                      onCancel: (b.status == 'confirmed' || b.status == 'pending') ? () { _cur = b; _openCancel(); } : null,
-                      onRate: b.status == 'completed' ? () { _cur = b; _openRate(); } : null,
-                      onRebook: () { _cur = b; _rebook(); },
-                    );
-                  },
-                ),
-        ),
+        Expanded(child: _listBody(state)),
       ]),
     );
   }
 
-  String _tabLabel(String t) => switch (t) {
-    'upcoming'  => 'Upcoming',
-    'completed' => 'Completed',
-    _           => 'Cancelled',
-  };
+  Widget _listBody(MyBookingsState state) {
+    switch (state.status) {
+      case MyBookingsStatus.initial:
+      case MyBookingsStatus.loading:
+        return const LoadingView();
+      case MyBookingsStatus.guest:
+        return SignInRequiredView(
+          message: AppLocalizations.of(context).bookingsSignInPrompt,
+        );
+      case MyBookingsStatus.error:
+        return ErrorRetryView(
+          message: state.errorMessage ??
+              AppLocalizations.of(context).errorGeneric,
+          onRetry: _cubit.load,
+        );
+      case MyBookingsStatus.loaded:
+      case MyBookingsStatus.refreshing:
+        final visible = state.visible;
+        if (visible.isEmpty) return _emptyState(state.tab);
+        return RefreshIndicator(
+          onRefresh: () => _cubit.load(refresh: true),
+          child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
+            itemCount: visible.length,
+            itemBuilder: (_, i) {
+              final b = visible[i];
+              return _Card(
+                bk: b,
+                rated: state.ratedIds.contains(b.id),
+                cancelling: state.cancellingId == b.id,
+                onTap: () { _curId = b.id; _push(_Sn.detail); },
+                onCancel: b.isUpcoming ? () => _openCancel(b) : null,
+                onRate: b.isCompleted ? () => _openRate(b) : null,
+                onRebook: _rebook,
+              );
+            },
+          ),
+        );
+    }
+  }
 
-  Widget _emptyState() {
-    final msgs = switch (_tab) {
-      'upcoming'  => ('No upcoming bookings', 'Book a service and it will show up here.'),
-      'completed' => ('Nothing completed yet', 'Your finished bookings will appear here.'),
-      _           => ('No cancelled bookings', 'Cancellations will be listed here.'),
+  String _tabLabel(String t) {
+    final l10n = AppLocalizations.of(context);
+    return switch (t) {
+      'upcoming'  => l10n.tabUpcoming,
+      'completed' => l10n.statusCompleted,
+      _           => l10n.statusCancelled,
+    };
+  }
+
+  Widget _emptyState(String tab) {
+    final l10n = AppLocalizations.of(context);
+    final msgs = switch (tab) {
+      'upcoming'  => (l10n.emptyUpcomingTitle, l10n.emptyUpcomingBody),
+      'completed' => (l10n.emptyCompletedTitle, l10n.emptyCompletedBody),
+      _           => (l10n.emptyCancelledTitle, l10n.emptyCancelledBody),
     };
     return Center(
       child: Padding(
@@ -256,10 +303,10 @@ class _State extends State<MyBookingsScreen> {
   // ═══════════════════════════════════════════════════════════════════════
   // DETAIL SCREEN
   // ═══════════════════════════════════════════════════════════════════════
-  Widget _detailScreen() {
-    final b = _cur;
+  Widget _detailScreen(MyBookingsState state, BookingListItemModel b) {
+    final l10n = AppLocalizations.of(context);
     final top = MediaQuery.of(context).padding.top;
-    final s = _ss(b.status);
+    final s = _ss(b.status, l10n);
     return Scaffold(
       backgroundColor: _bg,
       body: Column(children: [
@@ -284,7 +331,7 @@ class _State extends State<MyBookingsScreen> {
                   ),
                 ),
                 const SizedBox(width: 13),
-                Text('Booking details', style: GoogleFonts.nunito(
+                Text(l10n.bookingDetailsTitle, style: GoogleFonts.nunito(
                   fontSize: 19, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.3,
                 )),
                 const Spacer(),
@@ -303,15 +350,15 @@ class _State extends State<MyBookingsScreen> {
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: Colors.white.withValues(alpha: 0.20)),
                     ),
-                    child: Icon(b.ill, color: Colors.white, size: 34),
+                    child: Center(child: Text(b.serviceIcon, style: const TextStyle(fontSize: 30))),
                   ),
                   const SizedBox(width: 13),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(b.title, style: GoogleFonts.nunito(
+                    Text(b.serviceName, style: GoogleFonts.nunito(
                       fontSize: 19, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.3,
                     )),
                     const SizedBox(height: 2),
-                    Text('by ${b.vendor} · ${b.cat}', style: const TextStyle(
+                    Text('by ${b.providerName}', style: const TextStyle(
                       fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.white70,
                     )),
                   ])),
@@ -334,51 +381,46 @@ class _State extends State<MyBookingsScreen> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              _secTitle('Status'),
+              _secTitle(l10n.sectionStatus),
               const SizedBox(height: 10),
               _wCard(Padding(padding: const EdgeInsets.all(14), child: _Timeline(status: b.status))),
               const SizedBox(height: 20),
-              _secTitle('Schedule & address'),
+              _secTitle(l10n.sectionScheduleAddress),
               const SizedBox(height: 10),
               _wCard(Column(children: [
-                _InfoRow(icon: Icons.calendar_month_rounded, label: 'Date & time', value: '${b.date} · ${b.time}', first: true),
-                _InfoRow(icon: Icons.location_on_rounded, label: 'Service address', value: b.addr),
+                _InfoRow(icon: Icons.calendar_month_rounded, label: l10n.labelDateTime, value: '${b.dateLabel()} · ${b.timeLabel}', first: true),
+                _InfoRow(icon: Icons.location_on_rounded, label: l10n.labelServiceAddress, value: b.addressText),
               ])),
               const SizedBox(height: 20),
-              _secTitle('Vendor'),
+              _secTitle(l10n.sectionVendor),
               const SizedBox(height: 10),
               _wCard(_InfoRow(
                 icon: Icons.person_rounded,
-                label: '${b.cat} specialist',
-                value: b.vendor,
+                label: l10n.vendorSpecialist(b.serviceName),
+                value: b.providerName,
                 first: true,
                 trailing: GestureDetector(
-                  onTap: () => _toast('Calling vendor…'),
-                  child: const Text('Call', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: _t7)),
+                  onTap: () => _toast(l10n.vendorContactUnavailable),
+                  child: Text(l10n.callAction, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: _t7)),
                 ),
               )),
               const SizedBox(height: 20),
-              _secTitle('Payment'),
+              _secTitle(l10n.sectionPayment),
               const SizedBox(height: 10),
               _wCard(Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(children: [
-                  _brkLine('Service', b.svc),
-                  if (b.fee > 0) _brkLine('ELK service fee', b.fee),
-                  if (b.vat > 0) _brkLine('VAT (5%)', b.vat),
+                  // The backend charges the service price flat — there is no
+                  // separate ELK fee or GST line on a service booking.
+                  _brkLine(l10n.lineService, b.total),
                   const SizedBox(height: 6),
                   Divider(height: 1.5, thickness: 1.5, color: _line),
                   const SizedBox(height: 11),
                   Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                    Text('Total ${b.status == 'cancelled' ? '(refunded)' : 'paid'}',
+                    Text(b.isCancelled ? l10n.totalCancelled : l10n.totalPaid,
                         style: GoogleFonts.nunito(fontSize: 15, fontWeight: FontWeight.w900, color: _ink9)),
-                    Text('AED ${b.total}',
+                    Text(_aed(b.total),
                         style: GoogleFonts.nunito(fontSize: 18, fontWeight: FontWeight.w900, color: _ink9)),
-                  ]),
-                  const SizedBox(height: 8),
-                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                    const Text('Paid via', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: _ink5)),
-                    Text(b.method, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: _ink9)),
                   ]),
                 ]),
               )),
@@ -387,25 +429,25 @@ class _State extends State<MyBookingsScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
                 child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Text('Booking ID', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _ink4)),
+                    Text(l10n.bookingId, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _ink4)),
                     const SizedBox(height: 2),
-                    Text(b.id, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _ink9)),
+                    Text(b.reference, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _ink9)),
                   ]),
                   GestureDetector(
-                    onTap: () => _toast('Copied booking ID'),
+                    onTap: () => _copyReference(b.reference),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                       decoration: BoxDecoration(color: _chip, borderRadius: BorderRadius.circular(999)),
-                      child: const Text('Copy', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: _ink5)),
+                      child: Text(l10n.copyAction, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: _ink5)),
                     ),
                   ),
                 ]),
               )),
-              if (b.status == 'confirmed' || b.status == 'pending') ...[
+              if (b.isUpcoming) ...[
                 const SizedBox(height: 14),
-                const Text(
-                  'Free cancellation up to 2 hours before your slot. Cancellations after that may incur a 50% charge.',
-                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: _ink4, height: 1.5),
+                Text(
+                  l10n.cancelIsFreeNote,
+                  style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: _ink4, height: 1.5),
                 ),
               ],
               const SizedBox(height: 24),
@@ -417,16 +459,28 @@ class _State extends State<MyBookingsScreen> {
           color: Colors.white,
           padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
           child: SafeArea(top: false, child: Row(children: [
-            if (b.status == 'cancelled') ...[
-              Expanded(child: _CtaBtn(label: 'Rebook this service', onTap: _rebook)),
-            ] else if (b.status == 'completed') ...[
-              Expanded(child: _CtaBtn(label: b.rated ? 'Rated ★' : 'Rate', outline: true, onTap: _openRate)),
+            if (b.isCancelled) ...[
+              Expanded(child: _CtaBtn(label: l10n.rebookThisService, onTap: _rebook)),
+            ] else if (b.isCompleted) ...[
+              Expanded(child: _CtaBtn(
+                label: state.ratedIds.contains(b.id) ? l10n.ratedStar : l10n.rateAction,
+                outline: true,
+                onTap: () => _openRate(b),
+              )),
               const SizedBox(width: 11),
-              Expanded(child: _CtaBtn(label: 'Rebook', onTap: _rebook)),
+              Expanded(child: _CtaBtn(label: l10n.rebookAction, onTap: _rebook)),
             ] else ...[
-              Expanded(child: _CtaBtn(label: 'Reschedule', outline: true, onTap: _openResched)),
+              Expanded(child: _CtaBtn(
+                label: l10n.trackOrder,
+                outline: true,
+                onTap: () => widget.onTrackTap(b.id),
+              )),
               const SizedBox(width: 11),
-              Expanded(child: _CtaBtn(label: 'Cancel booking', danger: true, onTap: _openCancel)),
+              Expanded(child: _CtaBtn(
+                label: state.cancellingId == b.id ? l10n.cancelling : l10n.cancelBooking,
+                danger: true,
+                onTap: () => _openCancel(b),
+              )),
             ],
           ])),
         ),
@@ -445,18 +499,21 @@ class _State extends State<MyBookingsScreen> {
     ),
     child: child,
   );
-  Widget _brkLine(String k, int v) => Padding(
+  Widget _brkLine(String k, double v) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 6),
     child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
       Text(k, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: _ink5)),
-      Text('AED $v', style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: _ink9)),
+      Text(_aed(v), style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: _ink9)),
     ]),
   );
 
   // ═══════════════════════════════════════════════════════════════════════
   // SHEETS
   // ═══════════════════════════════════════════════════════════════════════
-  void _openCancel() async {
+  /// Cancellation reasons are collected for the user's benefit only —
+  /// `POST /bookings/:id/cancel` takes no body, so nothing is sent upstream.
+  void _openCancel(BookingListItemModel b) async {
+    final l10n = AppLocalizations.of(context);
     String? reason;
     final ok = await showModalBottomSheet<bool>(
       context: context,
@@ -464,15 +521,21 @@ class _State extends State<MyBookingsScreen> {
       backgroundColor: Colors.transparent,
       builder: (_) => StatefulBuilder(builder: (ctx, ss) {
         return _Sheet(children: [
-          Text('Cancel this booking?', style: GoogleFonts.nunito(fontSize: 19, fontWeight: FontWeight.w900, color: _ink9)),
+          Text(l10n.cancelBookingQuestion, style: GoogleFonts.nunito(fontSize: 19, fontWeight: FontWeight.w900, color: _ink9)),
           const SizedBox(height: 4),
-          Text('${_cur.title} · ${_cur.date}, ${_cur.time}',
+          Text('${b.serviceName} · ${b.dateLabel()}, ${b.timeLabel}',
               style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: _ink5)),
           const SizedBox(height: 16),
-          const Text('Why are you cancelling?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: _ink5)),
+          Text(l10n.whyCancelling, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: _ink5)),
           const SizedBox(height: 10),
           Wrap(spacing: 8, runSpacing: 8, children: [
-            for (final r in ['Changed my plans', 'Found another option', 'Wrong date/time', 'Too expensive', 'Other'])
+            for (final r in [
+              l10n.cancelReasonPlans,
+              l10n.cancelReasonAlternative,
+              l10n.cancelReasonWrongTime,
+              l10n.cancelReasonExpensive,
+              l10n.cancelReasonOther,
+            ])
               GestureDetector(
                 onTap: () => ss(() => reason = r),
                 child: Container(
@@ -495,9 +558,9 @@ class _State extends State<MyBookingsScreen> {
               const SizedBox(width: 9),
               Expanded(child: Text.rich(
                 TextSpan(children: [
-                  const TextSpan(text: "You're within the free window — "),
-                  TextSpan(text: 'full refund of AED ${_cur.total}', style: const TextStyle(fontWeight: FontWeight.w900)),
-                  const TextSpan(text: ' to your ELK Wallet in 3–5 days.'),
+                  TextSpan(text: l10n.cancellingIsFreePrefix),
+                  TextSpan(text: _aed(b.total), style: const TextStyle(fontWeight: FontWeight.w900)),
+                  TextSpan(text: l10n.cancellingIsFreeSuffix),
                 ]),
                 style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _t7),
               )),
@@ -505,124 +568,41 @@ class _State extends State<MyBookingsScreen> {
           ),
           const SizedBox(height: 16),
           Row(children: [
-            Expanded(child: _CtaBtn(label: 'Keep booking', outline: true, onTap: () => Navigator.of(ctx).pop(false))),
+            Expanded(child: _CtaBtn(label: l10n.keepBooking, outline: true, onTap: () => Navigator.of(ctx).pop(false))),
             const SizedBox(width: 11),
-            Expanded(child: _CtaBtn(label: 'Cancel booking', danger: true, onTap: () => Navigator.of(ctx).pop(true))),
+            Expanded(child: _CtaBtn(label: l10n.cancelBooking, danger: true, onTap: () => Navigator.of(ctx).pop(true))),
           ]),
         ]);
       }),
     );
-    if (ok == true && mounted) {
-      setState(() {
-        _cur.status = 'cancelled';
-        _cur.method = 'Refunded to Wallet';
-      });
-      _toast('Booking cancelled · refund on the way');
+    if (ok != true || !mounted) return;
+
+    final message = await _cubit.cancelBooking(b.id);
+    if (!mounted) return;
+    _toast(message);
+    // Only follow the booking into the Cancelled tab if it actually moved.
+    if (_cubit.state.bookings.any((x) => x.id == b.id && x.isCancelled)) {
       if (_sn == _Sn.detail) _pop();
-      setState(() => _tab = 'cancelled');
+      _cubit.selectTab('cancelled');
     }
   }
 
-  void _openResched() async {
-    String date = 'Tomorrow';
-    String time = '11:00 AM';
-    final ok = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => StatefulBuilder(builder: (ctx, ss) {
-        return _Sheet(children: [
-          Text('Reschedule', style: GoogleFonts.nunito(fontSize: 19, fontWeight: FontWeight.w900, color: _ink9)),
-          const SizedBox(height: 4),
-          const Text('Pick a new date and time slot.',
-              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: _ink5)),
-          const SizedBox(height: 14),
-          const Text('NEW DATE', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: _ink5)),
-          const SizedBox(height: 7),
-          Wrap(spacing: 9, runSpacing: 9, children: [
-            for (final d in ['Tomorrow', 'Sat 5 Jul', 'Sun 6 Jul', 'Mon 7 Jul'])
-              _Chip(label: d, active: date == d, onTap: () => ss(() => date = d)),
-          ]),
-          const SizedBox(height: 14),
-          const Text('NEW TIME', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: _ink5)),
-          const SizedBox(height: 7),
-          Wrap(spacing: 9, runSpacing: 9, children: [
-            for (final t in ['9:00 AM', '11:00 AM', '2:00 PM', '5:00 PM'])
-              _Chip(label: t, active: time == t, onTap: () => ss(() => time = t)),
-          ]),
-          const SizedBox(height: 16),
-          Row(children: [
-            Expanded(child: _CtaBtn(label: 'Back', outline: true, onTap: () => Navigator.of(ctx).pop(false))),
-            const SizedBox(width: 11),
-            Expanded(child: _CtaBtn(label: 'Confirm change', onTap: () => Navigator.of(ctx).pop(true))),
-          ]),
-        ]);
-      }),
-    );
-    if (ok == true && mounted) {
-      setState(() { _cur.date = date; _cur.time = time; });
-      _toast('Booking rescheduled');
-    }
+  /// Hands off to the full rating screen (tags + reward points) rather than
+  /// duplicating it in a sheet.
+  void _openRate(BookingListItemModel b) async {
+    final submitted = await widget.onRateTap(b.id);
+    if (submitted && mounted) _cubit.markRated(b.id);
   }
 
-  void _openRate() async {
-    int stars = _cur.rated ? 5 : 0;
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => StatefulBuilder(builder: (ctx, ss) {
-        return _Sheet(children: [
-          Text('Rate your service', style: GoogleFonts.nunito(fontSize: 19, fontWeight: FontWeight.w900, color: _ink9)),
-          const SizedBox(height: 4),
-          Text('How was ${_cur.title} by ${_cur.vendor}?',
-              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: _ink5)),
-          const SizedBox(height: 16),
-          // stars
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            for (int i = 1; i <= 5; i++)
-              GestureDetector(
-                onTap: () => ss(() => stars = i),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Icon(
-                    i <= stars ? Icons.star_rounded : Icons.star_outline_rounded,
-                    size: 38,
-                    color: i <= stars ? const Color(0xFFF6CE19) : const Color(0xFFD7DDD8),
-                  ),
-                ),
-              ),
-          ]),
-          const SizedBox(height: 12),
-          TextField(
-            maxLines: 3,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-            decoration: InputDecoration(
-              hintText: 'Share a few words (optional)…',
-              hintStyle: const TextStyle(color: _ink4, fontSize: 14, fontWeight: FontWeight.w600),
-              contentPadding: const EdgeInsets.all(13),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: _line, width: 1.5)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: _t6, width: 1.5)),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: _line, width: 1.5)),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(children: [
-            Expanded(child: _CtaBtn(label: 'Skip', outline: true, onTap: () => Navigator.of(ctx).pop())),
-            const SizedBox(width: 11),
-            Expanded(child: _CtaBtn(label: 'Submit review', onTap: () {
-              if (stars == 0) { _toast('Tap a star to rate'); return; }
-              setState(() => _cur.rated = true);
-              Navigator.of(ctx).pop();
-              _toast('Thanks for your review!');
-            })),
-          ]),
-        ]);
-      }),
-    );
-  }
+  /// `GET /bookings` returns no `serviceId`, so there is nothing to deep-link
+  /// back to — the user re-picks the service from the Services tab.
+  void _rebook() =>
+      _toast(AppLocalizations.of(context).rebookHint);
 
-  void _rebook() => _toast('Reopening service to rebook…');
+  void _copyReference(String reference) {
+    Clipboard.setData(ClipboardData(text: reference));
+    _toast(AppLocalizations.of(context).copiedBookingId);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -667,17 +647,27 @@ class _Tab extends StatelessWidget {
 }
 
 class _Card extends StatelessWidget {
-  const _Card({required this.bk, required this.onTap, this.onCancel, this.onRate, required this.onRebook});
-  final _BK bk;
+  const _Card({
+    required this.bk,
+    required this.rated,
+    required this.cancelling,
+    required this.onTap,
+    this.onCancel,
+    this.onRate,
+    required this.onRebook,
+  });
+  final BookingListItemModel bk;
+  final bool rated, cancelling;
   final VoidCallback onTap, onRebook;
   final VoidCallback? onCancel, onRate;
 
   @override
   Widget build(BuildContext context) {
-    final s = _ss(bk.status);
-    final isUpcoming = bk.status == 'confirmed' || bk.status == 'pending';
-    final isCompleted = bk.status == 'completed';
-    final isCancelled = bk.status == 'cancelled';
+    final l10n = AppLocalizations.of(context);
+    final s = _ss(bk.status, l10n);
+    final isUpcoming = bk.isUpcoming;
+    final isCompleted = bk.isCompleted;
+    final isCancelled = bk.isCancelled;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 13),
@@ -698,13 +688,13 @@ class _Card extends StatelessWidget {
               Container(
                 width: 52, height: 52,
                 decoration: BoxDecoration(color: _t05, borderRadius: BorderRadius.circular(15)),
-                child: Icon(bk.ill, color: _t6, size: 30),
+                child: Center(child: Text(bk.serviceIcon, style: const TextStyle(fontSize: 26))),
               ),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(bk.title, style: GoogleFonts.nunito(fontSize: 15.5, fontWeight: FontWeight.w900, color: _ink9, letterSpacing: -0.2), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(bk.serviceName, style: GoogleFonts.nunito(fontSize: 15.5, fontWeight: FontWeight.w900, color: _ink9, letterSpacing: -0.2), maxLines: 1, overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 1),
-                Text('by ${bk.vendor} · ${bk.cat}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _ink4), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text('by ${bk.providerName}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _ink4), maxLines: 1, overflow: TextOverflow.ellipsis),
               ])),
               const SizedBox(width: 8),
               Container(
@@ -727,13 +717,13 @@ class _Card extends StatelessWidget {
               Row(children: [
                 const Icon(Icons.calendar_month_rounded, size: 14, color: _t6),
                 const SizedBox(width: 4),
-                Text(bk.date, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _ink5)),
+                Text(bk.dateLabel(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _ink5)),
                 const SizedBox(width: 14),
                 const Icon(Icons.schedule_rounded, size: 14, color: _t6),
                 const SizedBox(width: 4),
-                Text(bk.time, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _ink5)),
+                Text(bk.timeLabel, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _ink5)),
                 const Spacer(),
-                Text('AED ${bk.total}', style: GoogleFonts.nunito(fontSize: 15, fontWeight: FontWeight.w900, color: _ink9)),
+                Text(_aed(bk.total), style: GoogleFonts.nunito(fontSize: 15, fontWeight: FontWeight.w900, color: _ink9)),
               ]),
             ]),
           ),
@@ -748,7 +738,7 @@ class _Card extends StatelessWidget {
               child: Row(children: [
                 const Icon(Icons.refresh_rounded, size: 14, color: _grn),
                 const SizedBox(width: 7),
-                Text('Refunded AED ${bk.total} to ELK Wallet',
+                Text(l10n.cancelledNothingCharged,
                     style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _grn)),
               ]),
             ),
@@ -758,15 +748,15 @@ class _Card extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
           child: Row(children: [
             if (isUpcoming) ...[
-              Expanded(child: _Btn(label: 'View details', onTap: onTap)),
+              Expanded(child: _Btn(label: l10n.viewDetails, onTap: onTap)),
               const SizedBox(width: 9),
-              Expanded(child: _Btn(label: 'Cancel', danger: true, onTap: onCancel ?? () {})),
+              Expanded(child: _Btn(label: cancelling ? l10n.cancelling : l10n.commonCancel, danger: true, onTap: onCancel ?? () {})),
             ] else if (isCompleted) ...[
-              Expanded(child: _Btn(label: bk.rated ? 'Rated ★' : 'Rate', onTap: onRate ?? () {})),
+              Expanded(child: _Btn(label: rated ? l10n.ratedStar : l10n.rateAction, onTap: onRate ?? () {})),
               const SizedBox(width: 9),
-              Expanded(child: _Btn(label: 'Rebook', primary: true, onTap: onRebook)),
+              Expanded(child: _Btn(label: l10n.rebookAction, primary: true, onTap: onRebook)),
             ] else if (isCancelled) ...[
-              Expanded(child: _Btn(label: 'Rebook', primary: true, onTap: onRebook)),
+              Expanded(child: _Btn(label: l10n.rebookAction, primary: true, onTap: onRebook)),
             ],
           ]),
         ),
@@ -842,19 +832,20 @@ class _Timeline extends StatelessWidget {
   const _Timeline({required this.status});
   final String status;
 
-  static const _steps = [
-    ('Booked',      'Order placed'),
-    ('Confirmed',   'Vendor accepted'),
-    ('In progress', 'On the day'),
-    ('Completed',   'Service done'),
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final steps = [
+      (l10n.timelineBooked,     l10n.timelineBookedSub),
+      (l10n.statusConfirmed,    l10n.timelineConfirmedSub),
+      (l10n.timelineInProgress, l10n.timelineInProgressSub),
+      (l10n.statusCompleted,    l10n.timelineCompletedSub),
+    ];
+
     if (status == 'cancelled') {
       return Column(children: [
-        _TlRow(done: true, title: 'Booked', sub: 'Order placed', hasLine: true, lineDone: false),
-        _TlRow(done: false, cancelled: true, title: 'Cancelled', sub: 'Refund issued to ELK Wallet', hasLine: false, lineDone: false),
+        _TlRow(done: true, title: l10n.timelineBooked, sub: l10n.timelineBookedSub, hasLine: true, lineDone: false),
+        _TlRow(done: false, cancelled: true, title: l10n.statusCancelled, sub: l10n.timelineRefundIssued, hasLine: false, lineDone: false),
       ]);
     }
     final reached = switch (status) {
@@ -864,12 +855,12 @@ class _Timeline extends StatelessWidget {
       _           => 0,
     };
     return Column(
-      children: List.generate(_steps.length, (i) {
-        final (title, sub) = _steps[i];
+      children: List.generate(steps.length, (i) {
+        final (title, sub) = steps[i];
         return _TlRow(
           done: i < reached,
           title: title, sub: sub,
-          hasLine: i < _steps.length - 1,
+          hasLine: i < steps.length - 1,
           lineDone: i < reached - 1,
         );
       }),
@@ -979,30 +970,6 @@ class _Sheet extends StatelessWidget {
         ),
         ...children,
       ]),
-    );
-  }
-}
-
-// selection chip (reschedule sheet)
-class _Chip extends StatelessWidget {
-  const _Chip({required this.label, required this.active, required this.onTap});
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
-        decoration: BoxDecoration(
-          color: active ? _t05 : Colors.white,
-          border: Border.all(color: active ? _t6 : _line, width: 1.5),
-          borderRadius: BorderRadius.circular(13),
-        ),
-        child: Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: active ? _t7 : _ink7)),
-      ),
     );
   }
 }

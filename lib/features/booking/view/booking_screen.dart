@@ -7,6 +7,7 @@ import '../../../core/widgets/buttons.dart';
 import '../../../core/widgets/location_picker_sheet.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../../data/models/booking_models.dart';
+import '../../../l10n/app_localizations.dart';
 import '../bloc/booking_bloc.dart';
 
 class BookingScreen extends StatefulWidget {
@@ -24,6 +25,8 @@ class BookingScreen extends StatefulWidget {
 }
 
 class _BookingScreenState extends State<BookingScreen> {
+  AppLocalizations get l10n => AppLocalizations.of(context);
+
   PickedLocation? _pickedAddress;
 
   @override
@@ -36,17 +39,26 @@ class _BookingScreenState extends State<BookingScreen> {
     final picked = await showLocationPicker(
       context,
       selectedId: _pickedAddress?.id,
-      title: 'Choose service address',
+      title: l10n.chooseServiceAddress,
     );
-    if (picked != null) setState(() => _pickedAddress = picked);
+    if (picked != null && mounted) {
+      setState(() => _pickedAddress = picked);
+      // The bloc needs the address too — the backend rejects empty ones.
+      context.read<BookingBloc>().add(BookingAddressSelected(
+            picked.address,
+            lat: picked.lat,
+            lng: picked.lng,
+          ));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.grayLight,
       appBar: AppBar(
-        title: const Text('Book Service'),
+        title: Text(l10n.bookService),
         backgroundColor: AppColors.dark,
         foregroundColor: Colors.white,
       ),
@@ -55,16 +67,21 @@ class _BookingScreenState extends State<BookingScreen> {
             previous.step != current.step && current.step == BookingStep.payment,
         listener: (context, state) => widget.onProceedToPayment(),
         builder: (context, state) {
-          if (state.status == BookingStatus.loading || state.details == null) {
-            return const LoadingView();
+          if (state.status == BookingStatus.guest) {
+            return SignInRequiredView(
+              message: l10n.bookingSignInPrompt,
+            );
           }
           if (state.status == BookingStatus.error) {
             return ErrorRetryView(
-              message: state.errorMessage ?? 'Something went wrong',
+              message: state.errorMessage ?? l10n.errorGeneric,
               onRetry: () => context
                   .read<BookingBloc>()
                   .add(BookingDetailsRequested(widget.serviceId)),
             );
+          }
+          if (state.status == BookingStatus.loading || state.details == null) {
+            return const LoadingView();
           }
 
           final details = state.details!;
@@ -85,8 +102,8 @@ class _BookingScreenState extends State<BookingScreen> {
                       ),
                     ),
                     const SizedBox(height: 20),
-                    const Text(
-                      'Select Date',
+                    Text(
+                      l10n.selectDateTitle,
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -145,8 +162,8 @@ class _BookingScreenState extends State<BookingScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    const Text(
-                      'Select Time',
+                    Text(
+                      l10n.selectTime,
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -203,8 +220,8 @@ class _BookingScreenState extends State<BookingScreen> {
                       },
                     ),
                     const SizedBox(height: 24),
-                    const Text(
-                      'Service Address',
+                    Text(
+                      l10n.serviceAddress,
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -227,12 +244,14 @@ class _BookingScreenState extends State<BookingScreen> {
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
-                                _pickedAddress?.address ?? details.address,
+                                state.effectiveAddress.isEmpty
+                                    ? l10n.tapChangeToChoose
+                                    : state.effectiveAddress,
                                 style: const TextStyle(fontSize: 13, color: AppColors.dark),
                               ),
                             ),
-                            const Text(
-                              'Change',
+                            Text(
+                              l10n.changeAction,
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
@@ -270,7 +289,7 @@ class _BookingScreenState extends State<BookingScreen> {
                   ],
                 ),
                 child: PrimaryButton(
-                  label: 'Proceed to Payment',
+                  label: l10n.proceedToPayment,
                   isLoading: state.status == BookingStatus.loading,
                   onPressed: state.canProceedToPayment
                       ? () => context
@@ -294,9 +313,10 @@ class _PriceBreakdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       children: [
-        _PriceRow(label: 'Service Fee', value: pricing.serviceFee),
+        _PriceRow(label: l10n.serviceFee, value: pricing.serviceFee),
         if (pricing.promoCode != null) ...[
           const SizedBox(height: 8),
           _PriceRow(
@@ -308,7 +328,7 @@ class _PriceBreakdown extends StatelessWidget {
         const SizedBox(height: 12),
         const Divider(color: AppColors.border),
         const SizedBox(height: 4),
-        _PriceRow(label: 'Total', value: pricing.total, isTotal: true),
+        _PriceRow(label: l10n.total, value: pricing.total, isTotal: true),
       ],
     );
   }
@@ -343,7 +363,7 @@ class _PriceRow extends StatelessWidget {
           ),
         ),
         Text(
-          '${sign}AED $amount',
+          '$sign₹$amount',
           style: TextStyle(
             fontSize: isTotal ? 16 : 13,
             fontWeight: isTotal ? FontWeight.w800 : FontWeight.w600,

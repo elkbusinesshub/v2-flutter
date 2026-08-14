@@ -5,6 +5,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../../data/models/chat_models.dart';
+import '../../../l10n/app_localizations.dart';
 import '../cubit/chat_cubit.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -33,15 +34,22 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
-  void _send() {
+  Future<void> _send() async {
     final text = _controller.text;
     if (text.trim().isEmpty) return;
-    context.read<ChatCubit>().sendMessage(widget.orderId, text);
     _controller.clear();
+    final error = await context.read<ChatCubit>().sendMessage(widget.orderId, text);
+    if (error == null || !mounted) return;
+    // Hand the text back so a failed send isn't silently lost.
+    _controller.text = text;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(error)));
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return BlocBuilder<ChatCubit, ChatState>(
       builder: (context, state) {
         final thread = state.thread;
@@ -53,7 +61,7 @@ class _ChatScreenState extends State<ChatScreen> {
             foregroundColor: Colors.white,
             titleSpacing: 0,
             title: thread == null
-                ? const Text('Chat')
+                ? Text(l10n.chat)
                 : Row(
                     children: [
                       CircleAvatar(
@@ -98,15 +106,30 @@ class _ChatScreenState extends State<ChatScreen> {
                   state.status == ChatStatus.initial) {
                 return const LoadingView();
               }
+              if (state.status == ChatStatus.guest) {
+                return SignInRequiredView(
+                  message: l10n.chatSignInPrompt,
+                );
+              }
               if (state.status == ChatStatus.error || thread == null) {
                 return ErrorRetryView(
-                  message: state.errorMessage ?? 'Something went wrong',
+                  message: state.errorMessage ?? l10n.errorGeneric,
                   onRetry: () => context.read<ChatCubit>().loadThread(widget.orderId),
                 );
               }
 
               return Column(
                 children: [
+                  if (!state.isRealtimeConnected)
+                    Container(
+                      width: double.infinity,
+                      color: AppColors.yellowLight,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Text(
+                        l10n.liveUpdatesUnavailable,
+                        style: TextStyle(fontSize: 11, color: AppColors.dark),
+                      ),
+                    ),
                   Expanded(
                     child: ListView(
                       controller: _scrollController,
@@ -157,8 +180,8 @@ class _ChatScreenState extends State<ChatScreen> {
                             child: TextField(
                               controller: _controller,
                               textCapitalization: TextCapitalization.sentences,
-                              decoration: const InputDecoration(
-                                hintText: 'Type a message...',
+                              decoration: InputDecoration(
+                                hintText: l10n.typeAMessage,
                                 hintStyle: TextStyle(fontSize: 13, color: AppColors.gray),
                                 border: InputBorder.none,
                               ),

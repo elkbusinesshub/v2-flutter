@@ -5,6 +5,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/widgets/buttons.dart';
 import '../../../core/widgets/state_views.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../data/models/payment_models.dart';
 import '../cubit/wallet_cubit.dart';
 
@@ -22,11 +23,27 @@ class _WalletScreenState extends State<WalletScreen> {
     context.read<WalletCubit>().loadWallet();
   }
 
+  /// Whether this tab was the visible one on the last dependency change.
+  bool _wasVisible = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Same reason as My Bookings: the nav branches stay mounted, so without
+    // this the balance is whatever it was when the tab was first opened.
+    final visible = TickerMode.valuesOf(context).enabled;
+    if (visible && !_wasVisible) {
+      context.read<WalletCubit>().loadWallet();
+    }
+    _wasVisible = visible;
+  }
+
   Future<void> _showAmountSheet({required bool isAddMoney}) async {
+    final l10n = AppLocalizations.of(context);
     final controller = TextEditingController();
     final cubit = context.read<WalletCubit>();
 
-    await showModalBottomSheet<void>(
+    final amount = await showModalBottomSheet<double>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
@@ -34,71 +51,93 @@ class _WalletScreenState extends State<WalletScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
       ),
       builder: (sheetContext) {
-        return Padding(
-          padding: EdgeInsets.fromLTRB(
-            20,
-            20,
-            20,
-            20 + MediaQuery.of(sheetContext).viewInsets.bottom,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                isAddMoney ? 'Add Money to Wallet' : 'Withdraw to Bank',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.dark,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                decoration: BoxDecoration(
-                  color: AppColors.grayLight,
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                ),
-                child: TextField(
-                  controller: controller,
-                  autofocus: true,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                    prefixText: 'AED  ',
-                    hintText: '0.00',
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.all(14),
+        String? error;
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) => Padding(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              20,
+              20,
+              20 + MediaQuery.of(sheetContext).viewInsets.bottom,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isAddMoney ? l10n.walletAddMoneyTitle : l10n.walletWithdrawTitle,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.dark,
                   ),
-                  style: const TextStyle(fontSize: 16, color: AppColors.dark),
                 ),
-              ),
-              const SizedBox(height: 20),
-              PrimaryButton(
-                label: isAddMoney ? 'Add Money' : 'Withdraw',
-                onPressed: () {
-                  final amount = double.tryParse(controller.text);
-                  if (amount == null || amount <= 0) return;
-                  if (isAddMoney) {
-                    cubit.addMoney(amount);
-                  } else {
-                    cubit.withdraw(amount);
-                  }
-                  Navigator.pop(sheetContext);
-                },
-              ),
-            ],
+                const SizedBox(height: 16),
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.grayLight,
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                  ),
+                  child: TextField(
+                    controller: controller,
+                    autofocus: true,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      prefixText: '₹ ',
+                      hintText: '0.00',
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.all(14),
+                    ),
+                    style: const TextStyle(fontSize: 16, color: AppColors.dark),
+                  ),
+                ),
+                if (error != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    error!,
+                    style: const TextStyle(fontSize: 12, color: AppColors.danger),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                PrimaryButton(
+                  label: isAddMoney ? l10n.walletAddMoney : l10n.walletWithdraw,
+                  onPressed: () {
+                    final value = double.tryParse(controller.text);
+                    // Mirrors the backend's @IsPositive / @Max(1_000_000).
+                    if (value == null || value <= 0) {
+                      setSheetState(() => error = l10n.walletAmountTooSmall);
+                      return;
+                    }
+                    if (value > 1000000) {
+                      setSheetState(() => error = l10n.walletAmountTooLarge);
+                      return;
+                    }
+                    Navigator.pop(sheetContext, value);
+                  },
+                ),
+              ],
+            ),
           ),
         );
       },
     );
+
+    if (amount == null || !mounted) return;
+    final message = isAddMoney ? await cubit.addMoney(amount) : await cubit.withdraw(amount);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     return Scaffold(
       backgroundColor: AppColors.grayLight,
       appBar: AppBar(
-        title: const Text('Wallet'),
+        title: Text(l10n.navWallet),
         backgroundColor: AppColors.dark,
         foregroundColor: Colors.white,
       ),
@@ -107,9 +146,12 @@ class _WalletScreenState extends State<WalletScreen> {
           if (state.status == WalletStatus.loading || state.status == WalletStatus.initial) {
             return const LoadingView();
           }
+          if (state.status == WalletStatus.guest) {
+            return SignInRequiredView(message: l10n.walletSignInPrompt);
+          }
           if (state.status == WalletStatus.error || state.summary == null) {
             return ErrorRetryView(
-              message: state.errorMessage ?? 'Something went wrong',
+              message: state.errorMessage ?? l10n.errorGeneric,
               onRetry: () => context.read<WalletCubit>().loadWallet(),
             );
           }
@@ -130,12 +172,12 @@ class _WalletScreenState extends State<WalletScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Available Balance',
+                      l10n.walletAvailableBalance,
                       style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.85)),
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'AED ${summary.balance.toStringAsFixed(2)}',
+                      '₹${summary.balance.toStringAsFixed(2)}',
                       style: const TextStyle(
                         fontSize: 32,
                         fontWeight: FontWeight.w800,
@@ -155,7 +197,7 @@ class _WalletScreenState extends State<WalletScreen> {
                           const Icon(Icons.card_giftcard, size: 14, color: Colors.white),
                           const SizedBox(width: 6),
                           Text(
-                            '${summary.rewardPoints} Reward Points',
+                            l10n.walletRewardPoints(summary.rewardPoints),
                             style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -173,7 +215,7 @@ class _WalletScreenState extends State<WalletScreen> {
                 children: [
                   Expanded(
                     child: PrimaryButton(
-                      label: 'Add Money',
+                      label: l10n.walletAddMoney,
                       icon: Icons.add,
                       isLoading: state.isProcessing,
                       onPressed: () => _showAmountSheet(isAddMoney: true),
@@ -182,16 +224,18 @@ class _WalletScreenState extends State<WalletScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: SecondaryButton(
-                      label: 'Withdraw',
-                      onPressed: () => _showAmountSheet(isAddMoney: false),
+                      label: l10n.walletWithdraw,
+                      onPressed: state.isProcessing
+                          ? null
+                          : () => _showAmountSheet(isAddMoney: false),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 24),
-              const Text(
-                'Transaction History',
-                style: TextStyle(
+              Text(
+                l10n.walletTransactionHistory,
+                style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                   color: AppColors.dark,
@@ -268,7 +312,7 @@ class _TransactionTile extends StatelessWidget {
                 ),
               ),
               Text(
-                '${transaction.isCredit ? '+' : '-'} AED ${transaction.amount.toStringAsFixed(0)}',
+                '${transaction.isCredit ? '+' : '-'} ₹${transaction.amount.toStringAsFixed(0)}',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,

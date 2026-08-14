@@ -41,10 +41,11 @@ class ReviewSubmissionModel {
   final List<String> selectedTags;
   final String comment;
 
+  /// [bookingId] is deliberately absent — it travels in the URL, and the
+  /// backend rejects unknown body fields (`forbidNonWhitelisted`).
   Map<String, dynamic> toJson() => {
-        'bookingId': bookingId,
         'rating': rating,
-        'selectedTags': selectedTags,
+        'tags': selectedTags,
         'comment': comment,
       };
 }

@@ -1,6 +1,6 @@
 part of 'review_cubit.dart';
 
-enum ReviewStatus { initial, loading, loaded, submitting, submitted, error }
+enum ReviewStatus { initial, loading, loaded, submitting, submitted, guest, error }
 
 class ReviewState extends Equatable {
   const ReviewState({

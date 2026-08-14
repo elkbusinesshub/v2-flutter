@@ -1,3 +1,7 @@
+import 'package:intl/intl.dart';
+
+import '../../core/l10n/l10n.dart';
+
 /// A selectable date chip on the Booking screen.
 class DateSlotModel {
   const DateSlotModel({
@@ -74,6 +78,87 @@ class BookingDetailsModel {
       );
 }
 
+/// One row of `GET /bookings` — the My Bookings list.
+class BookingListItemModel {
+  const BookingListItemModel({
+    required this.id,
+    required this.vertical,
+    required this.reference,
+    required this.serviceName,
+    required this.serviceIcon,
+    required this.providerName,
+    required this.status,
+    required this.scheduledAt,
+    required this.addressText,
+    required this.total,
+  });
+
+  final String id;
+
+  /// Which vertical owns this booking: `services`, `elkclean`, `elkrep`,
+  /// `rentals`, `porter`, `rides` or `elkstay`. Cancelling routes on it —
+  /// each vertical has its own endpoint.
+  final String vertical;
+  final String reference;
+  final String serviceName;
+
+  /// Emoji supplied by the backend (e.g. `🧹`), rendered as text.
+  final String serviceIcon;
+  final String providerName;
+
+  /// Lower-cased backend status: `confirmed`, `completed` or `cancelled`.
+  final String status;
+  /// Null for a booking with no date yet — an immediate porter pickup.
+  final DateTime? scheduledAt;
+  final String addressText;
+  final double total;
+
+  bool get isUpcoming => status == 'confirmed';
+  bool get isCompleted => status == 'completed';
+  bool get isCancelled => status == 'cancelled';
+
+  /// "Today" / "Tomorrow" / "Sat 5 Jul" — relative to [now] so it stays testable.
+  ///
+  /// Weekday and month names come from `intl` in the active locale rather than
+  /// a hardcoded English table, so a Malayalam user sees Malayalam dates.
+  String dateLabel({DateTime? now}) {
+    final l10n = L10n.current;
+    final at = scheduledAt;
+    if (at == null) return l10n.bookingNotScheduled;
+    final today = _dateOnly(now ?? DateTime.now());
+    final days = _dateOnly(at).difference(today).inDays;
+    if (days == 0) return l10n.dateToday;
+    if (days == 1) return l10n.dateTomorrow;
+    if (days == -1) return l10n.dateYesterday;
+    return DateFormat('EEE d MMM', l10n.localeName).format(at);
+  }
+
+  /// "11:00 AM", or an em dash when the booking carries no time.
+  String get timeLabel {
+    final at = scheduledAt;
+    if (at == null) return '—';
+    return DateFormat('h:mm a', L10n.current.localeName).format(at);
+  }
+
+  factory BookingListItemModel.fromJson(Map<String, dynamic> json) =>
+      BookingListItemModel(
+        id: json['id'] as String,
+        vertical: json['vertical'] as String? ?? 'services',
+        reference: json['reference'] as String,
+        serviceName: json['serviceName'] as String,
+        serviceIcon: json['serviceIcon'] as String? ?? '📋',
+        providerName: json['providerName'] as String,
+        status: (json['status'] as String).toLowerCase(),
+        scheduledAt: json['scheduledAt'] == null
+            ? null
+            : DateTime.parse(json['scheduledAt'] as String).toLocal(),
+        addressText: json['addressText'] as String,
+        total: (json['total'] as num).toDouble(),
+      );
+}
+
+DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+
 /// Result of confirming a booking — used on the Confirmation screen.
 class BookingConfirmationModel {
   const BookingConfirmationModel({
@@ -89,4 +174,13 @@ class BookingConfirmationModel {
   final String dateTimeLabel;
   final String providerName;
   final double amountPaid;
+
+  factory BookingConfirmationModel.fromJson(Map<String, dynamic> json) =>
+      BookingConfirmationModel(
+        bookingReference: json['bookingReference'] as String,
+        serviceName: json['serviceName'] as String,
+        dateTimeLabel: json['dateTimeLabel'] as String,
+        providerName: json['providerName'] as String,
+        amountPaid: (json['amountPaid'] as num).toDouble(),
+      );
 }

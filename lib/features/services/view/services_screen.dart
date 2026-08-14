@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../l10n/app_localizations.dart';
+
 // ── design tokens ──────────────────────────────────────────────────────────
 const _dark9 = Color(0xFF0C241D);
 const _dark7 = Color(0xFF1A4A3C);
@@ -299,19 +301,19 @@ class _Module {
   final List<_Item> items;
 }
 
-final _modules = <_Module>[
+List<_Module> _modulesFor(AppLocalizations l10n) => <_Module>[
   _Module(
     id: 'taxi',
-    title: 'Taxi & Rides',
+    title: l10n.svcTaxiRides,
     grad: const LinearGradient(
         colors: [Color(0xFFF6CE19), Color(0xFFE0A012)],
         begin: Alignment.topLeft, end: Alignment.bottomRight),
     icon: _svgTaxiCab,
     items: [
-      _Item('Economy Taxi', _svgTaxiCab, 12),
-      _Item('Premium Taxi', _svgSedan, 25),
-      _Item('Auto', _svgAuto, 8),
-      _Item('XL Van', _svgVan, 30),
+      _Item(l10n.svcEconomyTaxi, _svgTaxiCab, 12),
+      _Item(l10n.svcPremiumTaxi, _svgSedan, 25),
+      _Item(l10n.svcAuto, _svgAuto, 8),
+      _Item(l10n.svcXlVan, _svgVan, 30),
     ],
   ),
   _Module(
@@ -322,73 +324,73 @@ final _modules = <_Module>[
         begin: Alignment.topLeft, end: Alignment.bottomRight),
     icon: _svgBldg,
     items: [
-      _Item('PG Stay', _svgBldg, 220),
-      _Item("Men's Hostel", _svgBunk, 180),
-      _Item("Women's Hostel", _svgBunkPink, 190),
-      _Item('Homestay', _svgHome, 260),
+      _Item(l10n.svcPgStay, _svgBldg, 220),
+      _Item(l10n.svcMensHostel, _svgBunk, 180),
+      _Item(l10n.svcWomensHostel, _svgBunkPink, 190),
+      _Item(l10n.svcHomestay, _svgHome, 260),
     ],
   ),
   _Module(
     id: 'cleaning',
-    title: 'Cleaning',
+    title: l10n.svcCleaning,
     grad: const LinearGradient(
         colors: [Color(0xFF2FB29C), Color(0xFF137A6D)],
         begin: Alignment.topLeft, end: Alignment.bottomRight),
     icon: _svgSparkle,
     items: [
-      _Item('Home Cleaning', _svgHome, 60),
-      _Item('Deep Cleaning', _svgSparkle, 72),
-      _Item('Sofa & Upholstery', _svgSofa, 90),
-      _Item('Kitchen Cleaning', _svgPot, 45),
-      _Item('Bathroom Cleaning', _svgShower, 35),
-      _Item('Carpet & Rug', _svgRug, 55),
-      _Item('Laundry & Iron', _svgIron, 12),
-      _Item('Wash & Fold', _svgBasket, 25),
-      _Item('Water Tank', _svgTank, 80),
+      _Item(l10n.svcHomeCleaning, _svgHome, 60),
+      _Item(l10n.svcDeepCleaning, _svgSparkle, 72),
+      _Item(l10n.svcSofaUpholstery, _svgSofa, 90),
+      _Item(l10n.svcKitchenCleaning, _svgPot, 45),
+      _Item(l10n.svcBathroomCleaning, _svgShower, 35),
+      _Item(l10n.svcCarpetRug, _svgRug, 55),
+      _Item(l10n.svcLaundryIron, _svgIron, 12),
+      _Item(l10n.svcWashFold, _svgBasket, 25),
+      _Item(l10n.svcWaterTank, _svgTank, 80),
     ],
   ),
   _Module(
     id: 'car_rental',
-    title: 'Car Rental',
+    title: l10n.svcCarRental,
     grad: const LinearGradient(
         colors: [Color(0xFFE2972E), Color(0xFFC06D12)],
         begin: Alignment.topLeft, end: Alignment.bottomRight),
     icon: _svgSedan,
     items: [
-      _Item('Sedan', _svgSedan, 89),
-      _Item('SUV', _svgSuv, 120),
-      _Item('Luxury', _svgLux, 250),
-      _Item('Van', _svgVan, 140),
+      _Item(l10n.svcSedan, _svgSedan, 89),
+      _Item(l10n.svcSuv, _svgSuv, 120),
+      _Item(l10n.svcLuxury, _svgLux, 250),
+      _Item(l10n.svcVan, _svgVan, 140),
     ],
   ),
   _Module(
     id: 'repair',
-    title: 'Repair',
+    title: l10n.svcRepair,
     grad: const LinearGradient(
         colors: [Color(0xFF5FCEDE), Color(0xFF2BA0B8)],
         begin: Alignment.topLeft, end: Alignment.bottomRight),
     icon: _svgWrench,
     items: [
-      _Item('AC & Cooling', _svgAc, 40),
-      _Item('Plumbing', _svgPipe, 45),
-      _Item('Electrical', _svgBolt, 50),
-      _Item('Carpentry', _svgHammer, 65),
-      _Item('Painting', _svgRoller, 130),
-      _Item('Handyman', _svgGear, 35),
+      _Item(l10n.svcAcCooling, _svgAc, 40),
+      _Item(l10n.svcPlumbing, _svgPipe, 45),
+      _Item(l10n.svcElectrical, _svgBolt, 50),
+      _Item(l10n.svcCarpentry, _svgHammer, 65),
+      _Item(l10n.svcPainting, _svgRoller, 130),
+      _Item(l10n.svcHandyman, _svgGear, 35),
     ],
   ),
   _Module(
     id: 'porter',
-    title: 'Porter & Movers',
+    title: l10n.svcPorterMovers,
     grad: const LinearGradient(
         colors: [Color(0xFFEE7CA0), Color(0xFFD14B77)],
         begin: Alignment.topLeft, end: Alignment.bottomRight),
     icon: _svgTruckS,
     items: [
-      _Item('Bike Delivery', _svgBike, 15),
-      _Item('Mini Truck', _svgTruckS, 60),
-      _Item('House Shifting', _svgBox, 150),
-      _Item('Movers & Packers', _svgBox, 200),
+      _Item(l10n.svcBikeDelivery, _svgBike, 15),
+      _Item(l10n.svcMiniTruck, _svgTruckS, 60),
+      _Item(l10n.svcHouseShifting, _svgBox, 150),
+      _Item(l10n.svcMoversPackers, _svgBox, 200),
     ],
   ),
 ];
@@ -417,9 +419,11 @@ class _ServicesScreenState extends State<ServicesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final all = _modulesFor(l10n);
     final modules = _q.isEmpty
-        ? _modules
-        : _modules
+        ? all
+        : all
             .map((m) => _Module(
                   id: m.id,
                   title: m.title,
@@ -453,7 +457,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
                   child: Padding(
                     padding: const EdgeInsets.all(24),
                     child: Text(
-                      'No services match "${_ctrl.text}".\nTry "AC", "taxi" or "clean".',
+                      l10n.svcNoMatch(_ctrl.text),
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 13.5,
@@ -482,6 +486,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
 class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final top = MediaQuery.of(context).padding.top;
     return Container(
       decoration: const BoxDecoration(
@@ -507,7 +512,7 @@ class _Header extends StatelessWidget {
         ),
         const SizedBox(width: 13),
         Text(
-          'Services',
+          l10n.homeServices,
           style: GoogleFonts.nunito(
             fontSize: 19,
             fontWeight: FontWeight.w900,
@@ -538,6 +543,8 @@ class _SearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     return Container(
       color: _bg,
       padding: const EdgeInsets.fromLTRB(18, 12, 18, 4),
@@ -564,7 +571,7 @@ class _SearchBar extends StatelessWidget {
                 fontWeight: FontWeight.w600,
                 color: _ink9,
               ),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 isDense: true,
                 filled: false,
                 contentPadding: EdgeInsets.zero,
@@ -573,7 +580,7 @@ class _SearchBar extends StatelessWidget {
                 focusedBorder: InputBorder.none,
                 errorBorder: InputBorder.none,
                 disabledBorder: InputBorder.none,
-                hintText: 'Search services… (e.g. AC, taxi)',
+                hintText: l10n.svcSearchHint,
                 hintStyle: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -704,7 +711,7 @@ class _ItemCard extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              'from AED ${item.price}',
+              'from ₹${item.price}',
               style: const TextStyle(
                 fontSize: 9.5,
                 fontWeight: FontWeight.w700,

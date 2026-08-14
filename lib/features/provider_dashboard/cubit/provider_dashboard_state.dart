@@ -1,6 +1,15 @@
 part of 'provider_dashboard_cubit.dart';
 
-enum ProviderDashboardStatus { initial, loading, loaded, error }
+enum ProviderDashboardStatus {
+  initial,
+  loading,
+  loaded,
+  guest,
+
+  /// Signed in, but no provider profile yet — the backend answers `403`.
+  notRegistered,
+  error,
+}
 
 class ProviderDashboardState extends Equatable {
   const ProviderDashboardState({

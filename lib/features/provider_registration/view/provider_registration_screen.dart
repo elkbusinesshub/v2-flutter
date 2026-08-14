@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/widgets/buttons.dart';
+import '../../../l10n/app_localizations.dart';
 import '../cubit/provider_registration_cubit.dart';
 
 class ProviderRegistrationScreen extends StatefulWidget {
@@ -49,15 +50,27 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.grayLight,
       appBar: AppBar(
-        title: const Text('Become a Provider'),
+        title: Text(l10n.becomeProvider),
         backgroundColor: AppColors.dark,
         foregroundColor: Colors.white,
       ),
       body: BlocBuilder<ProviderRegistrationCubit, ProviderRegistrationState>(
         builder: (context, state) {
+          if (state.status == ProviderRegistrationStatus.error &&
+              state.errorMessage != null) {
+            // Previously dropped on the floor — a second application returns
+            // 409 "You already have a provider profile".
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context)
+                ..hideCurrentSnackBar()
+                ..showSnackBar(SnackBar(content: Text(state.errorMessage!)));
+            });
+          }
           if (state.status == ProviderRegistrationStatus.submitted) {
             return _SubmittedView(onDone: widget.onDone);
           }
@@ -68,6 +81,7 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
   }
 
   Widget _buildDetailsStep(BuildContext context, ProviderRegistrationState state) {
+    final l10n = AppLocalizations.of(context);
     final cubit = context.read<ProviderRegistrationCubit>();
 
     return SingleChildScrollView(
@@ -75,30 +89,30 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Tell us about your business',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.dark),
+          Text(
+            l10n.tellUsAboutBusiness,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.dark),
           ),
           const SizedBox(height: 4),
-          const Text(
-            "We'll use these details to set up your provider profile.",
-            style: TextStyle(fontSize: 13, color: AppColors.gray),
+          Text(
+            l10n.detailsForProfile,
+            style: const TextStyle(fontSize: 13, color: AppColors.gray),
           ),
           const SizedBox(height: 24),
-          _FieldLabel('Business Name'),
+          _FieldLabel(l10n.businessName),
           _InputContainer(
             child: TextField(
               controller: _businessNameController,
               onChanged: cubit.businessNameChanged,
-              decoration: const InputDecoration(
-                hintText: 'e.g. Royal Shine Co.',
+              decoration: InputDecoration(
+                hintText: l10n.businessNameHint,
                 border: InputBorder.none,
-                contentPadding: EdgeInsets.all(14),
+                contentPadding: const EdgeInsets.all(14),
               ),
             ),
           ),
           const SizedBox(height: 16),
-          _FieldLabel('Service Category'),
+          _FieldLabel(l10n.serviceCategory),
           _InputContainer(
             child: DropdownButtonFormField<String>(
               initialValue: state.form.serviceCategory,
@@ -115,7 +129,7 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
             ),
           ),
           const SizedBox(height: 16),
-          _FieldLabel('Contact Number'),
+          _FieldLabel(l10n.contactNumber),
           _InputContainer(
             child: TextField(
               controller: _contactNumberController,
@@ -129,21 +143,21 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
             ),
           ),
           const SizedBox(height: 16),
-          _FieldLabel('Service Area'),
+          _FieldLabel(l10n.serviceArea),
           _InputContainer(
             child: TextField(
               controller: _serviceAreaController,
               onChanged: cubit.serviceAreaChanged,
-              decoration: const InputDecoration(
-                hintText: 'e.g. Downtown Dubai',
+              decoration: InputDecoration(
+                hintText: l10n.serviceAreaHint,
                 border: InputBorder.none,
-                contentPadding: EdgeInsets.all(14),
+                contentPadding: const EdgeInsets.all(14),
               ),
             ),
           ),
           const SizedBox(height: 28),
           PrimaryButton(
-            label: 'Continue',
+            label: l10n.commonContinue,
             onPressed: state.canContinue ? cubit.goToDocumentsStep : null,
           ),
         ],
@@ -152,6 +166,7 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
   }
 
   Widget _buildDocumentsStep(BuildContext context, ProviderRegistrationState state) {
+    final l10n = AppLocalizations.of(context);
     final cubit = context.read<ProviderRegistrationCubit>();
     final form = state.form;
 
@@ -160,28 +175,28 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Upload required documents',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.dark),
+          Text(
+            l10n.uploadDocuments,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.dark),
           ),
           const SizedBox(height: 4),
-          const Text(
-            'Verified providers get more bookings and customer trust.',
-            style: TextStyle(fontSize: 13, color: AppColors.gray),
+          Text(
+            l10n.verifiedProvidersBlurb,
+            style: const TextStyle(fontSize: 13, color: AppColors.gray),
           ),
           const SizedBox(height: 24),
           _DocumentUploadCard(
             icon: Icons.badge_outlined,
-            title: 'Trade License',
-            subtitle: 'Upload a clear photo or PDF of your trade license',
+            title: l10n.tradeLicense,
+            subtitle: l10n.tradeLicenseHint,
             isUploaded: form.tradeLicenseUploaded,
             onUpload: cubit.uploadTradeLicense,
           ),
           const SizedBox(height: 12),
           _DocumentUploadCard(
             icon: Icons.contact_page_outlined,
-            title: 'ID Document',
-            subtitle: 'Upload a government-issued photo ID',
+            title: l10n.idDocument,
+            subtitle: l10n.idDocumentHint,
             isUploaded: form.idDocumentUploaded,
             onUpload: cubit.uploadIdDocument,
           ),
@@ -190,7 +205,7 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
             children: [
               Expanded(
                 child: OutlineDarkButton(
-                  label: 'Back',
+                  label: l10n.commonBack,
                   onPressed: cubit.backToDetailsStep,
                 ),
               ),
@@ -198,7 +213,7 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
               Expanded(
                 flex: 2,
                 child: PrimaryButton(
-                  label: 'Submit Application',
+                  label: l10n.submitApplication,
                   isLoading: state.status == ProviderRegistrationStatus.submitting,
                   onPressed: state.canSubmit ? cubit.submit : null,
                 ),
@@ -263,6 +278,7 @@ class _DocumentUploadCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -306,14 +322,14 @@ class _DocumentUploadCard extends StatelessWidget {
                 color: AppColors.tealLight,
                 borderRadius: BorderRadius.circular(AppRadius.sm),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.check_circle, size: 14, color: AppColors.tealDark),
-                  SizedBox(width: 4),
+                  const Icon(Icons.check_circle, size: 14, color: AppColors.tealDark),
+                  const SizedBox(width: 4),
                   Text(
-                    'Uploaded',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.tealDark),
+                    l10n.uploaded,
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.tealDark),
                   ),
                 ],
               ),
@@ -327,7 +343,7 @@ class _DocumentUploadCard extends StatelessWidget {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               ),
-              child: const Text('Upload', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              child: Text(l10n.upload, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
             ),
         ],
       ),
@@ -342,6 +358,7 @@ class _SubmittedView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -354,19 +371,18 @@ class _SubmittedView extends StatelessWidget {
             child: const Icon(Icons.check_circle, color: AppColors.tealDark, size: 48),
           ),
           const SizedBox(height: 24),
-          const Text(
-            'Application Submitted!',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.dark),
+          Text(
+            l10n.applicationSubmitted,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.dark),
           ),
           const SizedBox(height: 8),
-          const Text(
-            "We'll review your details and verify your documents within 24-48 hours. "
-            "You'll get a notification once your provider account is approved.",
+          Text(
+            l10n.applicationReviewNote,
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: AppColors.gray),
+            style: const TextStyle(fontSize: 13, color: AppColors.gray),
           ),
           const SizedBox(height: 28),
-          PrimaryButton(label: 'Done', onPressed: onDone),
+          PrimaryButton(label: l10n.commonDone, onPressed: onDone),
         ],
       ),
     );

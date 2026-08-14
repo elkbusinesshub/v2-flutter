@@ -78,4 +78,13 @@ class WalletSummaryModel {
   final double balance;
   final int rewardPoints;
   final List<WalletTransactionModel> transactions;
+
+  factory WalletSummaryModel.fromJson(Map<String, dynamic> json) =>
+      WalletSummaryModel(
+        balance: (json['balance'] as num).toDouble(),
+        rewardPoints: json['rewardPoints'] as int,
+        transactions: (json['transactions'] as List)
+            .map((e) => WalletTransactionModel.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
 }

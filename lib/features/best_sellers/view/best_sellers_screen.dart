@@ -1,6 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
+
+import '../../../core/errors/api_exception.dart';
+import '../../../core/widgets/live_map_view.dart';
+import '../../../data/models/ad_models.dart';
+import '../../../data/repositories/marketplace_repository.dart';
+import '../../../l10n/app_localizations.dart';
 
 // ── design tokens ──────────────────────────────────────────────────────────
 const _dark9 = Color(0xFF0C241D);
@@ -33,73 +42,13 @@ const _svgDefs =
 String _svg(String body) =>
     '<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">$_svgDefs$body</svg>';
 
-const _svgBroom =
-    '<path d="M36 8 L21 25" stroke="url(#gWood)" stroke-width="5" stroke-linecap="round"/>'
-    '<path d="M22 23 L26 27" stroke="#137A6D" stroke-width="6" stroke-linecap="round"/>'
-    '<path d="M21 25 L9 39 Q17 44 29 37 Z" fill="url(#gStraw)"/>'
-    '<path d="M14 30 L11 38M18 28 L17 40M22 28 L24 39M25 30 L29 36"'
-    ' stroke="#A9772A" stroke-width="1.2" stroke-linecap="round" opacity=".7"/>';
-
-const _svgTaxi =
-    '<rect x="20" y="11" width="9" height="5" rx="1.3" fill="#15241F"/>'
-    '<path d="M9 31c0-1 .5-2.4 1.3-3.3l3.2-6.3c.8-1.6 2.3-2.4 4-2.4h12.9'
-    'c1.7 0 3.2.8 4 2.4l3.2 6.3c.8.9 1.3 2.3 1.3 3.3v6c0 1.1-.9 2-2 2H11'
-    'c-1.1 0-2-.9-2-2v-6Z" fill="url(#gYel)"/>'
-    '<path d="M14.4 21.6 12.6 26h22.8l-1.8-4.4c-.5-1-1.3-1.6-2.4-1.6H16.8'
-    'c-1.1 0-1.9.6-2.4 1.6Z" fill="#2C3A44"/>'
-    '<rect x="9" y="29" width="30" height="3" fill="#15241F"/>'
-    '<rect x="9" y="29" width="5" height="3" fill="#F6CE19"/>'
-    '<rect x="19" y="29" width="5" height="3" fill="#F6CE19"/>'
-    '<rect x="29" y="29" width="5" height="3" fill="#F6CE19"/>'
-    '<circle cx="16" cy="37" r="3.4" fill="#15241F"/>'
-    '<circle cx="32" cy="37" r="3.4" fill="#15241F"/>'
-    '<ellipse cx="38" cy="27" rx="1.6" ry="2" fill="#FCEFB0"/>';
-
-const _svgWrench =
-    '<path d="M31 11a8 8 0 0 0-10 10.4L9 33.5a3.4 3.4 0 1 0 4.8 4.8'
-    'l12.1-12.1A8 8 0 0 0 37 16l-4.3 4.3-4-.6-.6-4L32.5 11Z" fill="url(#gTealI)"/>'
-    '<path d="M30 28l9 9a2.9 2.9 0 0 1-4 4l-9-9" fill="#0F6E60"/>'
-    '<circle cx="13" cy="34.5" r="1.7" fill="#fff"/>';
-
-const _svgSpray =
-    '<rect x="17" y="20" width="15" height="19" rx="3.5" fill="url(#gTealI)"/>'
-    '<rect x="20.5" y="14" width="8" height="6" fill="#0F6E60"/>'
-    '<path d="M20.5 15.5 H34 V19 h-4" fill="none" stroke="#15241F" stroke-width="2.6"/>'
-    '<path d="M37 10l4-2M38 14h5M37 18l4 2" stroke="#88C9BD" stroke-width="1.6" stroke-linecap="round"/>'
-    '<rect x="20" y="26" width="9" height="7" rx="1.5" fill="#DFF3EF" opacity=".85"/>';
-
-const _svgCar =
-    '<path d="M10 27c0-.8.4-1.9 1-2.6l3-5c.8-1.3 2-2 3.5-2h13'
-    'c1.5 0 2.7.7 3.5 2l3 5c.6.7 1 1.8 1 2.6v6c0 1.1-.9 2-2 2H12'
-    'c-1.1 0-2-.9-2-2v-6Z" fill="url(#gYel)"/>'
-    '<path d="M15.5 19.5 14 24h20l-1.5-4.5c-.4-1-1.2-1.5-2.2-1.5H17.7'
-    'c-1 0-1.8.5-2.2 1.5Z" fill="#2C3A44"/>'
-    '<circle cx="16" cy="35" r="3.2" fill="#15241F"/>'
-    '<circle cx="32" cy="35" r="3.2" fill="#15241F"/>'
-    '<ellipse cx="12.5" cy="28.5" rx="1.5" ry="1.8" fill="#FCEFB0"/>'
-    '<ellipse cx="35.5" cy="28.5" rx="1.5" ry="1.8" fill="#FCEFB0"/>';
-
-const _svgTruck =
-    '<rect x="17" y="13" width="22" height="19" rx="1.5" fill="url(#gYel)"/>'
-    '<path d="M8 21c0-.6.4-1 1-1h8v12H9c-.6 0-1-.4-1-1v-10Z" fill="url(#gTealI)"/>'
-    '<rect x="10" y="22.5" width="5.5" height="4.5" rx="1" fill="#DFF3EF"/>'
-    '<rect x="8" y="30" width="31" height="3" fill="#15241F"/>'
-    '<circle cx="15" cy="36" r="3.2" fill="#15241F"/>'
-    '<circle cx="31" cy="36" r="3.2" fill="#15241F"/>';
-
-const _svgBld =
-    '<path d="M8 14 24 7 40 14Z" fill="#fff"/>'
-    '<rect x="10" y="14" width="28" height="26" rx="2" fill="#fff" opacity=".92"/>'
-    '<rect x="14" y="18" width="5" height="5" rx="1" fill="#16402F"/>'
-    '<rect x="21.5" y="18" width="5" height="5" rx="1" fill="#16402F"/>'
-    '<rect x="29" y="18" width="5" height="5" rx="1" fill="#16402F"/>'
-    '<rect x="14" y="26" width="5" height="5" rx="1" fill="#16402F"/>'
-    '<rect x="29" y="26" width="5" height="5" rx="1" fill="#16402F"/>'
-    '<rect x="21.5" y="32" width="6" height="8" rx="1" fill="#F6CE19"/>';
+// The seven vendor illustrations that lived here were only referenced by the
+// removed fixture list; _svg()/_svgDefs stay, since the vendor card still
+// renders whatever illustration a real listing supplies.
 
 // ── vendor data ─────────────────────────────────────────────────────────────
 class _Vendor {
-  const _Vendor({
+  _Vendor({
     required this.id,
     required this.vendor,
     required this.title,
@@ -118,9 +67,30 @@ class _Vendor {
     required this.incl,
     required this.addr,
     required this.phone,
+    this.lat,
+    this.lng,
+    this.emoji = '🛍️',
+    this.wishlistCount = 0,
+    this.viewCount = 0,
+    this.isWishlisted = false,
   });
 
   final String id, vendor, title, cat, ill, badge, desc, addr, phone;
+
+  /// Centre of [addr]. Null when the backend has no coordinate for the
+  /// locality, in which case the coverage map is hidden.
+  final double? lat, lng;
+
+  /// Shown when [ill] is empty — real ads carry an emoji, not an SVG.
+  final String emoji;
+
+  /// The two numbers the ranking is built on. [wishlistCount] and
+  /// [isWishlisted] are mutable because saving updates them in place: the same
+  /// ad appears in the rails, in search results and on the detail screen, and
+  /// all three have to agree after a tap.
+  int wishlistCount;
+  bool isWishlisted;
+  final int viewCount;
   final bool badgeDark;
   final int price, oldPrice;
   final double rating;
@@ -130,368 +100,49 @@ class _Vendor {
   final List<String> incl;
 }
 
-const _vendors = <_Vendor>[
-  _Vendor(
-    id: 'royal',
-    vendor: 'Royal Shine',
-    title: 'Deep Home Clean',
-    cat: 'Cleaning',
-    ill: _svgBroom,
-    grad: LinearGradient(
-      colors: [Color(0xFF2FB29C), Color(0xFF137A6D)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-    radialGlow: Color(0xFF3FD2B4),
-    badge: '15% off',
-    badgeDark: false,
-    price: 72,
-    oldPrice: 85,
-    rating: 4.9,
-    jobs: '1.2k',
-    eta: '90 min',
-    desc:
-        'Professional deep cleaning by trained, uniformed staff using eco-friendly, child-safe products. Ideal for move-in/out or a thorough seasonal refresh.',
-    incl: [
-      'Kitchen & appliances degreased',
-      'Bathrooms deep-sanitized',
-      'Floors, windows & dusting',
-      'Eco-friendly, child-safe products',
-    ],
-    addr: 'Serves Al Reem Island & Reem area · within 5 km',
-    phone: '+971 50 123 4567',
-  ),
-  _Vendor(
-    id: 'speed',
-    vendor: 'SpeedRide',
-    title: 'Airport Transfer',
-    cat: 'Taxi',
-    ill: _svgTaxi,
-    grad: LinearGradient(
-      colors: [Color(0xFFF6CE19), Color(0xFFE0A012)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-    radialGlow: Color(0xFFFBE07A),
-    badge: 'New',
-    badgeDark: true,
-    price: 12,
-    oldPrice: 18,
-    rating: 4.8,
-    jobs: '5k',
-    eta: '5 min',
-    desc:
-        'Reliable, on-time airport transfers with professional drivers. Includes flight tracking and complimentary wait time so you never rush.',
-    incl: [
-      'Meet & greet at terminal',
-      'Live flight tracking',
-      'Free 60-min wait',
-      'Luggage assistance',
-    ],
-    addr: 'Pickup across Al Reem & Abu Dhabi city',
-    phone: '+971 50 765 4321',
-  ),
-  _Vendor(
-    id: 'express',
-    vendor: 'Express Fix',
-    title: 'AC Service & Fix',
-    cat: 'Repair',
-    ill: _svgWrench,
-    grad: LinearGradient(
-      colors: [Color(0xFFEE7CA0), Color(0xFFD14B77)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-    radialGlow: Color(0xFFF7B6CC),
-    badge: '30% off',
-    badgeDark: false,
-    price: 40,
-    oldPrice: 58,
-    rating: 4.7,
-    jobs: '860',
-    eta: '60 min',
-    desc:
-        'Certified technicians for AC servicing, gas refill, and quick fixes. Transparent pricing and a 30-day workmanship warranty on every job.',
-    incl: [
-      'Full AC inspection',
-      'Filter clean & gas check',
-      'Minor parts included',
-      '30-day warranty',
-    ],
-    addr: 'Serves Al Reem Island · same-day slots',
-    phone: '+971 50 998 2211',
-  ),
-  _Vendor(
-    id: 'sparkle',
-    vendor: 'Sparkle Crew',
-    title: 'Sofa & Carpet Care',
-    cat: 'Cleaning',
-    ill: _svgSpray,
-    grad: LinearGradient(
-      colors: [Color(0xFF5FBF6E), Color(0xFF2E8B4A)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-    radialGlow: Color(0xFF8FD99A),
-    badge: '10% off',
-    badgeDark: false,
-    price: 55,
-    oldPrice: 62,
-    rating: 4.8,
-    jobs: '740',
-    eta: '2 hrs',
-    desc:
-        'Steam-powered deep cleaning for sofas, carpets and mattresses. Removes stains, odours and dust mites with fabric-safe solutions.',
-    incl: [
-      'Steam & shampoo treatment',
-      'Stain & odour removal',
-      'Quick-dry finish',
-      'Fabric-safe products',
-    ],
-    addr: 'Serves Al Reem Island & nearby towers',
-    phone: '+971 50 442 8890',
-  ),
-  _Vendor(
-    id: 'citycab',
-    vendor: 'CityCab',
-    title: 'City Ride 24/7',
-    cat: 'Taxi',
-    ill: _svgTaxi,
-    grad: LinearGradient(
-      colors: [Color(0xFF4FA3E3), Color(0xFF2568B2)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-    radialGlow: Color(0xFF7FC4F0),
-    badge: 'Popular',
-    badgeDark: true,
-    price: 8,
-    oldPrice: 10,
-    rating: 4.6,
-    jobs: '12k',
-    eta: '3 min',
-    desc:
-        'Round-the-clock city rides with fixed, transparent fares. Clean cars, courteous drivers and quick pickups anywhere in the city.',
-    incl: [
-      'Fixed upfront fares',
-      'Clean, AC vehicles',
-      '24/7 availability',
-      'Live trip tracking',
-    ],
-    addr: 'Pickup across Abu Dhabi city',
-    phone: '+971 50 221 3344',
-  ),
-  _Vendor(
-    id: 'handypro',
-    vendor: 'HandyPro',
-    title: 'Plumbing & Electrical',
-    cat: 'Repair',
-    ill: _svgWrench,
-    grad: LinearGradient(
-      colors: [Color(0xFF8E7CEE), Color(0xFF5B4BC9)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-    radialGlow: Color(0xFFB3A6F7),
-    badge: '20% off',
-    badgeDark: false,
-    price: 35,
-    oldPrice: 45,
-    rating: 4.8,
-    jobs: '1.5k',
-    eta: '45 min',
-    desc:
-        'Licensed plumbers and electricians for leaks, fittings, wiring and installations. Upfront quotes before any work begins.',
-    incl: [
-      'Licensed technicians',
-      'Upfront quote',
-      'Spare parts sourced',
-      '30-day warranty',
-    ],
-    addr: 'Serves Al Reem & Al Maryah Island',
-    phone: '+971 50 667 1122',
-  ),
-  _Vendor(
-    id: 'driveeasy',
-    vendor: 'DriveEasy',
-    title: 'Daily Car Rental',
-    cat: 'Car rental',
-    ill: _svgCar,
-    grad: LinearGradient(
-      colors: [Color(0xFFE2972E), Color(0xFFC06D12)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-    radialGlow: Color(0xFFF0B45C),
-    badge: 'Hot',
-    badgeDark: true,
-    price: 89,
-    oldPrice: 110,
-    rating: 4.7,
-    jobs: '2.3k',
-    eta: '30 min',
-    desc:
-        'Well-maintained sedans and hatchbacks delivered to your door. Full insurance and unlimited city mileage included.',
-    incl: [
-      'Free doorstep delivery',
-      'Full insurance cover',
-      'Unlimited city mileage',
-      '24/7 roadside assist',
-    ],
-    addr: 'Delivery across Al Reem & downtown',
-    phone: '+971 50 889 5566',
-  ),
-  _Vendor(
-    id: 'falcon',
-    vendor: 'Falcon Rentals',
-    title: 'Weekly SUV Deals',
-    cat: 'Car rental',
-    ill: _svgCar,
-    grad: LinearGradient(
-      colors: [Color(0xFF2FB29C), Color(0xFF137A6D)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-    radialGlow: Color(0xFF3FD2B4),
-    badge: '25% off',
-    badgeDark: false,
-    price: 480,
-    oldPrice: 640,
-    rating: 4.9,
-    jobs: '980',
-    eta: '1 hr',
-    desc:
-        'Premium SUVs on flexible weekly plans. Ideal for families and desert trips, with free swaps and priority support.',
-    incl: [
-      'Late-model SUVs',
-      'Free vehicle swap',
-      'Comprehensive insurance',
-      'Priority support line',
-    ],
-    addr: 'Branches in Al Reem & airport',
-    phone: '+971 50 773 2211',
-  ),
-  _Vendor(
-    id: 'quickshift',
-    vendor: 'QuickShift',
-    title: 'House Shifting',
-    cat: 'Porter',
-    ill: _svgTruck,
-    grad: LinearGradient(
-      colors: [Color(0xFFEE7CA0), Color(0xFFD14B77)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-    radialGlow: Color(0xFFF7B6CC),
-    badge: '15% off',
-    badgeDark: false,
-    price: 150,
-    oldPrice: 175,
-    rating: 4.8,
-    jobs: '620',
-    eta: 'Same day',
-    desc:
-        'Full house and office moves with trained crew, packing materials and furniture assembly at the new place.',
-    incl: [
-      'Trained moving crew',
-      'Packing materials included',
-      'Furniture disassembly & setup',
-      'Damage protection cover',
-    ],
-    addr: 'Moves within Abu Dhabi & Dubai',
-    phone: '+971 50 334 7788',
-  ),
-  _Vendor(
-    id: 'boxvan',
-    vendor: 'BoxVan',
-    title: 'Mini Truck & Driver',
-    cat: 'Porter',
-    ill: _svgTruck,
-    grad: LinearGradient(
-      colors: [Color(0xFF4FA3E3), Color(0xFF2568B2)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-    radialGlow: Color(0xFF7FC4F0),
-    badge: 'New',
-    badgeDark: true,
-    price: 60,
-    oldPrice: 75,
-    rating: 4.5,
-    jobs: '310',
-    eta: '40 min',
-    desc:
-        'On-demand mini truck with driver for single-item and small moves. Pay by the hour, helper optional.',
-    incl: [
-      'Driver included',
-      'Hourly billing',
-      'Optional helper',
-      'Straps & blankets provided',
-    ],
-    addr: 'Serves Al Reem Island · on demand',
-    phone: '+971 50 556 9900',
-  ),
-  _Vendor(
-    id: 'marina',
-    vendor: 'ELK Stay Marina',
-    title: 'Studio near Marina',
-    cat: 'Stay',
-    ill: _svgBld,
-    grad: LinearGradient(
-      colors: [Color(0xFF8E7CEE), Color(0xFF5B4BC9)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-    radialGlow: Color(0xFFB3A6F7),
-    badge: '20% off',
-    badgeDark: false,
-    price: 220,
-    oldPrice: 275,
-    rating: 4.7,
-    jobs: '312',
-    eta: 'Check-in 2pm',
-    desc:
-        'Fully furnished studio minutes from the marina. Weekly housekeeping, fast Wi-Fi and all bills included in the rate.',
-    incl: [
-      'All bills included',
-      'Weekly housekeeping',
-      'High-speed Wi-Fi',
-      'Free cancellation 48h',
-    ],
-    addr: 'Marina Bay, Al Reem Island',
-    phone: '+971 50 118 4455',
-  ),
-  _Vendor(
-    id: 'reemres',
-    vendor: 'Reem Residences',
-    title: 'Furnished 1BR Stay',
-    cat: 'Stay',
-    ill: _svgBld,
-    grad: LinearGradient(
-      colors: [Color(0xFF5FBF6E), Color(0xFF2E8B4A)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-    radialGlow: Color(0xFF8FD99A),
-    badge: 'Top pick',
-    badgeDark: true,
-    price: 310,
-    oldPrice: 350,
-    rating: 4.9,
-    jobs: '540',
-    eta: 'Check-in 3pm',
-    desc:
-        'Spacious one-bedroom apartment with balcony views, gym and pool access. Perfect for monthly and extended stays.',
-    incl: [
-      'Gym & pool access',
-      'Balcony sea view',
-      'Smart TV & workspace',
-      'Monthly discounts',
-    ],
-    addr: 'Reem Central Park district',
-    phone: '+971 50 990 2233',
-  ),
+/// Presentation palette for the cards — the backend supplies no colours, so
+/// these cycle by position. Not data.
+const _cardGrads = <LinearGradient>[
+  LinearGradient(colors: [Color(0xFF0F6E60), Color(0xFF15887A)]),
+  LinearGradient(colors: [Color(0xFFE6B500), Color(0xFFF6CE19)]),
+  LinearGradient(colors: [Color(0xFF1A4A3C), Color(0xFF2A7A66)]),
+  LinearGradient(colors: [Color(0xFF7A4FCF), Color(0xFF9B6FE8)]),
 ];
+
+/// Maps a marketplace ad onto the card model this screen was built around.
+///
+/// Fields the backend does not track — star rating, jobs-done, ETA, a
+/// discounted "was" price, an inclusions list, a public phone number — are
+/// left empty rather than invented, and every render site guards for that.
+_Vendor _vendorFrom(AdModel ad, int index) {
+  final grad = _cardGrads[index % _cardGrads.length];
+  return _Vendor(
+    id: ad.id,
+    vendor: ad.sellerName,
+    title: ad.title,
+    cat: ad.categorySlug,
+    ill: '',
+    emoji: ad.icon,
+    grad: grad,
+    radialGlow: grad.colors.last,
+    badge: ad.categorySlug.replaceAll('_', ' '),
+    badgeDark: false,
+    price: ad.price.round(),
+    oldPrice: 0,
+    rating: 0,
+    jobs: '',
+    eta: '',
+    desc: ad.description,
+    incl: const [],
+    addr: ad.location,
+    phone: '',
+    lat: ad.lat,
+    lng: ad.lng,
+    wishlistCount: ad.wishlistCount,
+    viewCount: ad.viewCount,
+    isWishlisted: ad.isWishlisted,
+  );
+}
 
 // ── internal screens enum ────────────────────────────────────────────────────
 enum _Sn { list, detail }
@@ -505,9 +156,312 @@ class BestSellersScreen extends StatefulWidget {
 }
 
 class _State extends State<BestSellersScreen> {
+  AppLocalizations get l10n => AppLocalizations.of(context);
+
   final List<_Sn> _stack = [_Sn.list];
   _Vendor? _cur;
   String _query = '';
+
+  List<_Vendor> _vendors = const [];
+  bool _loading = true;
+  String? _loadError;
+
+  /// Search runs against `GET /marketplace/ads`, not over [_vendors]: the rails
+  /// hold only the top 30 sellers, so filtering them locally could never find
+  /// anything outside that slice.
+  List<_Vendor> _results = const [];
+  bool _searching = false;
+  String? _searchError;
+  Timer? _debounce;
+
+  /// Guards against an earlier, slower response overwriting a later one.
+  int _searchSeq = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onQueryChanged(String value) {
+    setState(() => _query = value);
+    _debounce?.cancel();
+
+    final q = value.trim();
+    // The backend rejects a one-character query (min length 2); below that
+    // there is nothing to ask for.
+    if (q.length < 2) {
+      setState(() {
+        _results = const [];
+        _searching = false;
+        _searchError = null;
+      });
+      return;
+    }
+
+    setState(() => _searching = true);
+    _debounce = Timer(const Duration(milliseconds: 350), () => _search(q));
+  }
+
+  Future<void> _search(String query) async {
+    final seq = ++_searchSeq;
+    try {
+      final ads = await context.read<MarketplaceRepository>().listAds(
+            query: query,
+            limit: 50,
+          );
+      if (!mounted || seq != _searchSeq) return;
+      setState(() {
+        _results = [for (final (i, ad) in ads.indexed) _vendorFrom(ad, i)];
+        _searching = false;
+        _searchError = null;
+      });
+    } catch (e) {
+      if (!mounted || seq != _searchSeq) return;
+      setState(() {
+        _searching = false;
+        _searchError = friendlyErrorMessage(e);
+      });
+    }
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
+    try {
+      final ads = await context.read<MarketplaceRepository>().topSellers(limit: 30);
+      if (!mounted) return;
+      setState(() {
+        _vendors = [for (final (i, ad) in ads.indexed) _vendorFrom(ad, i)];
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = friendlyErrorMessage(e);
+      });
+    }
+  }
+
+  /// Collects the two things an order needs — where and who to call — then
+  /// places it. Kept deliberately small: anything else the seller needs is in
+  /// the note field.
+  Future<void> _openOrderSheet(_Vendor vendor) async {
+    final addressCtrl = TextEditingController(text: vendor.addr);
+    final phoneCtrl = TextEditingController();
+    final noteCtrl = TextEditingController();
+    final repository = context.read<MarketplaceRepository>();
+    var submitting = false;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => Padding(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            18,
+            20,
+            20 + MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text(
+              vendor.title,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                color: _ink9,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '₹${vendor.price}',
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                color: _tDp,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: addressCtrl,
+              decoration: InputDecoration(
+                labelText: l10n.stepLocation,
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: phoneCtrl,
+              keyboardType: TextInputType.phone,
+              decoration: InputDecoration(
+                labelText: l10n.phoneNumber,
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: noteCtrl,
+              maxLines: 2,
+              decoration: InputDecoration(
+                labelText: l10n.description,
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _tDp,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                onPressed: submitting
+                    ? null
+                    : () async {
+                        final address = addressCtrl.text.trim();
+                        final phone = phoneCtrl.text.trim();
+                        if (address.isEmpty || phone.isEmpty) {
+                          ScaffoldMessenger.of(ctx)
+                            ..hideCurrentSnackBar()
+                            ..showSnackBar(
+                              SnackBar(content: Text(l10n.fillRequiredFields)),
+                            );
+                          return;
+                        }
+                        setSheet(() => submitting = true);
+                        try {
+                          final order = await repository.placeOrder(
+                            vendor.id,
+                            addressText: address,
+                            contactPhone: phone,
+                            note: noteCtrl.text.trim().isEmpty
+                                ? null
+                                : noteCtrl.text.trim(),
+                          );
+                          if (!ctx.mounted) return;
+                          // Captured before the pop: the sheet's own messenger
+                          // goes away with it, and the confirmation should
+                          // outlive the sheet.
+                          final messenger = ScaffoldMessenger.of(ctx);
+                          Navigator.pop(ctx);
+                          messenger
+                            ..hideCurrentSnackBar()
+                            ..showSnackBar(
+                              SnackBar(content: Text(l10n.orderPlaced(order.code))),
+                            );
+                        } catch (e) {
+                          if (!ctx.mounted) return;
+                          setSheet(() => submitting = false);
+                          ScaffoldMessenger.of(ctx)
+                            ..hideCurrentSnackBar()
+                            ..showSnackBar(
+                              SnackBar(content: Text(friendlyErrorMessage(e))),
+                            );
+                        }
+                      },
+                child: submitting
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Text(
+                        l10n.placeOrder,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  /// Saves or unsaves an ad, updating every copy of it on screen.
+  ///
+  /// Optimistic, like the ElkStay stay-detail heart: the icon flips
+  /// immediately and rolls back if the call fails, because waiting on a round
+  /// trip to fill a heart reads as a broken button.
+  Future<void> _toggleWishlist(_Vendor vendor) async {
+    final wasSaved = vendor.isWishlisted;
+    final wasCount = vendor.wishlistCount;
+
+    _applyWishlist(
+      vendor.id,
+      saved: !wasSaved,
+      count: wasSaved ? wasCount - 1 : wasCount + 1,
+    );
+
+    try {
+      final result = await context
+          .read<MarketplaceRepository>()
+          .setWishlisted(vendor.id, wishlisted: !wasSaved);
+      if (!mounted) return;
+      // Trust the server's count over the guess — other people save too.
+      _applyWishlist(
+        vendor.id,
+        saved: result.isWishlisted,
+        count: result.wishlistCount,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _applyWishlist(vendor.id, saved: wasSaved, count: wasCount);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(friendlyErrorMessage(e))));
+    }
+  }
+
+  /// The same ad can be on screen three times — in a rail, in search results
+  /// and as the open detail page. All of them move together.
+  void _applyWishlist(String id, {required bool saved, required int count}) {
+    setState(() {
+      for (final v in [..._vendors, ..._results, ?_cur]) {
+        if (v.id == id) {
+          v.isWishlisted = saved;
+          v.wishlistCount = count;
+        }
+      }
+    });
+  }
+
+  /// Opening an ad is what records a view, so the ranking reflects real
+  /// interest. Failure is silent — the detail page still opens from the card
+  /// we already have.
+  Future<void> _openVendor(_Vendor v) async {
+    _push(_Sn.detail, vendor: v);
+    try {
+      final fresh = await context.read<MarketplaceRepository>().getAd(v.id);
+      if (!mounted) return;
+      setState(() => _cur = _vendorFrom(fresh, 0));
+    } catch (_) {
+      // keep the card we already showed
+    }
+  }
 
   void _push(_Sn screen, {_Vendor? vendor}) {
     setState(() {
@@ -558,23 +512,13 @@ class _State extends State<BestSellersScreen> {
   // ── list screen ────────────────────────────────────────────────────────────
   Widget _listScreen() {
     final top = MediaQuery.of(context).padding.top;
-    final q = _query.trim().toLowerCase();
-    final results = q.isEmpty
-        ? _vendors
-        : _vendors
-              .where(
-                (v) =>
-                    v.title.toLowerCase().contains(q) ||
-                    v.vendor.toLowerCase().contains(q) ||
-                    v.cat.toLowerCase().contains(q),
-              )
-              .toList();
+    final q = _query.trim();
 
     return Scaffold(
       backgroundColor: _bg,
       body: Column(
         children: [
-          _DarkHeader(title: 'Best sellers', top: top, onBack: _pop),
+          _DarkHeader(title: l10n.homeBestSellersTag, top: top, onBack: _pop),
           // Search bar
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
@@ -598,7 +542,7 @@ class _State extends State<BestSellersScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: TextField(
-                      onChanged: (v) => setState(() => _query = v),
+                      onChanged: _onQueryChanged,
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -616,7 +560,7 @@ class _State extends State<BestSellersScreen> {
                         contentPadding: const EdgeInsets.symmetric(
                           vertical: 14,
                         ),
-                        hintText: 'Search vendors or services…',
+                        hintText: l10n.searchVendorsHint,
                         hintStyle: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -630,7 +574,7 @@ class _State extends State<BestSellersScreen> {
             ),
           ),
           Expanded(
-            child: q.isNotEmpty ? _searchResults(results) : _railsBody(),
+            child: q.isNotEmpty ? _searchBody() : _railsBody(),
           ),
         ],
       ),
@@ -638,6 +582,38 @@ class _State extends State<BestSellersScreen> {
   }
 
   // ── search results (flat grid) ───────────────────────────────────────────
+
+  /// Search has its own loading and error states because it is a round trip,
+  /// not a filter over what is already on screen.
+  Widget _searchBody() {
+    if (_searching) {
+      return const Center(
+        child: SizedBox(
+          height: 22,
+          width: 22,
+          child: CircularProgressIndicator(strokeWidth: 2.2, color: _tDp),
+        ),
+      );
+    }
+    if (_searchError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Text(
+            _searchError!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: _ink5,
+            ),
+          ),
+        ),
+      );
+    }
+    return _searchResults(_results);
+  }
+
   Widget _searchResults(List<_Vendor> results) {
     if (results.isEmpty) {
       return Center(
@@ -662,7 +638,7 @@ class _State extends State<BestSellersScreen> {
       ),
       itemBuilder: (context, i) => _VendorCard(
         vendor: results[i],
-        onTap: () => _push(_Sn.detail, vendor: results[i]),
+        onTap: () => _openVendor(results[i]),
       ),
     );
   }
@@ -677,7 +653,57 @@ class _State extends State<BestSellersScreen> {
     'Stay': 'Stays for you',
   };
 
+  /// Shown until the marketplace backend exists — better than inventing
+  /// vendors the user cannot actually book.
+  Widget _emptyState() => Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('🏪', style: TextStyle(fontSize: 40)),
+              const SizedBox(height: 12),
+              Text(
+                l10n.noSellersYet,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.nunito(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  color: _ink9,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                l10n.listingsWillAppear,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _ink5,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
   Widget _railsBody() {
+    if (_loading) return const Center(child: CircularProgressIndicator(color: _tDp));
+    if (_loadError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Text(_loadError!, textAlign: TextAlign.center,
+                style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: _ink5)),
+            const SizedBox(height: 10),
+            TextButton(onPressed: _load, child: Text(l10n.commonRetry)),
+          ]),
+        ),
+      );
+    }
+    if (_vendors.isEmpty) return _emptyState();
     final topRated = [..._vendors]
       ..sort((a, b) => b.rating.compareTo(a.rating));
     final cats = <String>[];
@@ -691,8 +717,8 @@ class _State extends State<BestSellersScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _railHeader(
-            'Top rated near you',
-            sub: 'Tap a card to view the vendor',
+            l10n.topRatedNearYou,
+            sub: l10n.tapCardToViewVendor,
           ),
           _rail(topRated.take(6).toList()),
           for (final cat in cats) ...[
@@ -748,7 +774,7 @@ class _State extends State<BestSellersScreen> {
           width: 156,
           child: _VendorCard(
             vendor: vendors[i],
-            onTap: () => _push(_Sn.detail, vendor: vendors[i]),
+            onTap: () => _openVendor(vendors[i]),
           ),
         ),
       ),
@@ -759,7 +785,10 @@ class _State extends State<BestSellersScreen> {
   Widget _detailScreen() {
     final v = _cur!;
     final top = MediaQuery.of(context).padding.top;
-    final savePercent = ((1 - v.price / v.oldPrice) * 100).round();
+    // Ads carry no "was" price, so there is no discount to advertise.
+    // Guarded rather than removed so a future sale price still works.
+    final savePercent =
+        v.oldPrice > v.price ? ((1 - v.price / v.oldPrice) * 100).round() : 0;
 
     return Scaffold(
       backgroundColor: _bg,
@@ -769,7 +798,12 @@ class _State extends State<BestSellersScreen> {
           CustomScrollView(
             slivers: [
               SliverToBoxAdapter(
-                child: _DetailHero(vendor: v, top: top, onBack: _pop),
+                child: _DetailHero(
+                  vendor: v,
+                  top: top,
+                  onBack: _pop,
+                  onWishlistTap: () => _toggleWishlist(v),
+                ),
               ),
               // White sheet content (rounded cap lives in the hero)
               SliverToBoxAdapter(
@@ -820,10 +854,12 @@ class _State extends State<BestSellersScreen> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.star_rounded, size: 14, color: _yd),
+                                // Engagement, not a star rating — the backend
+                                // tracks saves and views, not reviews.
+                                const Icon(Icons.favorite_rounded, size: 13, color: Color(0xFFE2554C)),
                                 const SizedBox(width: 4),
                                 Text(
-                                  '${v.rating}',
+                                  '${v.wishlistCount}',
                                   style: const TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w800,
@@ -842,17 +878,20 @@ class _State extends State<BestSellersScreen> {
                         runSpacing: 8,
                         children: [
                           _Pill(
-                            text: 'Verified vendor',
+                            text: l10n.verifiedVendor,
                             icon: Icons.check_circle_rounded,
                             fg: _tDp,
                             bg: _t050,
                           ),
                           _Pill(
-                            text: '${v.jobs} jobs done',
+                            text: '${v.viewCount} views',
                             fg: const Color(0xFF9A7400),
                             bg: _y050,
                           ),
-                          _Pill(text: '⏱ ${v.eta}', fg: _ink5, bg: _chip),
+                          // "jobs done" and an ETA have no source in an ad, so
+                          // they are omitted rather than shown as blanks.
+                          if (v.eta.isNotEmpty)
+                            _Pill(text: '⏱ ${v.eta}', fg: _ink5, bg: _chip),
                         ],
                       ),
                       const SizedBox(height: 18),
@@ -861,7 +900,7 @@ class _State extends State<BestSellersScreen> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
-                            'AED ${v.price}',
+                            '₹${v.price}',
                             style: GoogleFonts.nunito(
                               fontSize: 26,
                               fontWeight: FontWeight.w900,
@@ -869,11 +908,12 @@ class _State extends State<BestSellersScreen> {
                               letterSpacing: -0.5,
                             ),
                           ),
+                          if (savePercent > 0) ...[
                           const SizedBox(width: 10),
                           Padding(
                             padding: const EdgeInsets.only(bottom: 4),
                             child: Text(
-                              'AED ${v.oldPrice}',
+                              '₹${v.oldPrice}',
                               style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
@@ -904,11 +944,12 @@ class _State extends State<BestSellersScreen> {
                               ),
                             ),
                           ),
+                          ],
                         ],
                       ),
                       const SizedBox(height: 22),
                       // About section
-                      _SectionTitle('About this service'),
+                      _SectionTitle(l10n.aboutThisService),
                       const SizedBox(height: 8),
                       Text(
                         v.desc,
@@ -919,9 +960,11 @@ class _State extends State<BestSellersScreen> {
                           height: 1.55,
                         ),
                       ),
+                      if (v.incl.isNotEmpty) ...[
                       const SizedBox(height: 22),
-                      // What's included
-                      _SectionTitle("What's included"),
+                      // What's included — ads carry no inclusions list yet, so
+                      // the section hides rather than showing an empty heading.
+                      _SectionTitle(l10n.whatsIncluded),
                       const SizedBox(height: 12),
                       Column(
                         children: v.incl
@@ -960,21 +1003,28 @@ class _State extends State<BestSellersScreen> {
                             )
                             .toList(),
                       ),
+                      ],
                       const SizedBox(height: 22),
                       // Location
-                      _SectionTitle('Location & coverage'),
+                      _SectionTitle(l10n.locationCoverage),
                       const SizedBox(height: 12),
-                      _LocationCard(addr: v.addr),
-                      const SizedBox(height: 22),
-                      // Contact
-                      _SectionTitle('Contact vendor'),
-                      const SizedBox(height: 12),
-                      _ContactSection(phone: v.phone),
-                      const SizedBox(height: 22),
-                      // Reviews
-                      _SectionTitle('Ratings & reviews'),
-                      const SizedBox(height: 12),
-                      _ReviewCard(rating: v.rating),
+                      _LocationCard(addr: v.addr, lat: v.lat, lng: v.lng),
+                      if (v.phone.isNotEmpty) ...[
+                        const SizedBox(height: 22),
+                        _SectionTitle(l10n.contactVendor),
+                        const SizedBox(height: 12),
+                        _ContactSection(phone: v.phone),
+                      ],
+                      if (v.rating > 0) ...[
+                        const SizedBox(height: 22),
+                        _SectionTitle(l10n.ratingsReviews),
+                        const SizedBox(height: 12),
+                        _ReviewCard(rating: v.rating),
+                      ],
+                      const SizedBox(height: 26),
+                      // The only way to actually order a listing. Without it
+                      // the seller's Orders tab could never fill.
+                      _OrderButton(onTap: () => _openOrderSheet(v)),
                     ],
                   ),
                 ),
@@ -1051,11 +1101,13 @@ class _DetailHero extends StatelessWidget {
     required this.vendor,
     required this.top,
     required this.onBack,
+    required this.onWishlistTap,
   });
 
   final _Vendor vendor;
   final double top;
   final VoidCallback onBack;
+  final VoidCallback onWishlistTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1112,24 +1164,36 @@ class _DetailHero extends StatelessWidget {
           Positioned(
             top: top + 8,
             right: 18,
-            child: Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.13),
-                borderRadius: BorderRadius.circular(13),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.20)),
-              ),
-              child: const Icon(
-                Icons.favorite_border_rounded,
-                color: Colors.white,
-                size: 20,
+            child: GestureDetector(
+              onTap: onWishlistTap,
+              child: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.13),
+                  borderRadius: BorderRadius.circular(13),
+                  border:
+                      Border.all(color: Colors.white.withValues(alpha: 0.20)),
+                ),
+                child: Icon(
+                  vendor.isWishlisted
+                      ? Icons.favorite_rounded
+                      : Icons.favorite_border_rounded,
+                  color: vendor.isWishlisted
+                      ? const Color(0xFFE2554C)
+                      : Colors.white,
+                  size: 20,
+                ),
               ),
             ),
           ),
           // Center illustration
           Center(
-            child: SvgPicture.string(_svg(vendor.ill), width: 130, height: 130),
+            // Real ads carry an emoji, not an SVG illustration; SvgPicture
+            // would throw on an empty string.
+            child: vendor.ill.isEmpty
+                ? Text(vendor.emoji, style: const TextStyle(fontSize: 76))
+                : SvgPicture.string(_svg(vendor.ill), width: 130, height: 130),
           ),
           // Vendor name badge bottom-left
           Positioned(
@@ -1257,13 +1321,11 @@ class _VendorCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    // Illustration
+                    // Illustration — emoji for a real ad, SVG for a fixture.
                     Center(
-                      child: SvgPicture.string(
-                        _svg(v.ill),
-                        width: 56,
-                        height: 56,
-                      ),
+                      child: v.ill.isEmpty
+                          ? Text(v.emoji, style: const TextStyle(fontSize: 34))
+                          : SvgPicture.string(_svg(v.ill), width: 56, height: 56),
                     ),
                     // Vendor name
                     Positioned(
@@ -1340,7 +1402,7 @@ class _VendorCard extends StatelessWidget {
                   Row(
                     children: [
                       Text(
-                        'AED ${v.price}',
+                        '₹${v.price}',
                         style: GoogleFonts.nunito(
                           fontSize: 14,
                           fontWeight: FontWeight.w900,
@@ -1349,7 +1411,7 @@ class _VendorCard extends StatelessWidget {
                       ),
                       const SizedBox(width: 7),
                       Text(
-                        'AED ${v.oldPrice}',
+                        '₹${v.oldPrice}',
                         style: const TextStyle(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w700,
@@ -1430,8 +1492,9 @@ class _Pill extends StatelessWidget {
 
 // ── location card ─────────────────────────────────────────────────────────────
 class _LocationCard extends StatelessWidget {
-  const _LocationCard({required this.addr});
+  const _LocationCard({required this.addr, this.lat, this.lng});
   final String addr;
+  final double? lat, lng;
 
   @override
   Widget build(BuildContext context) {
@@ -1451,15 +1514,22 @@ class _LocationCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
-          // Map placeholder
-          Container(
-            height: 120,
-            color: const Color(0xFFE9EEEA),
-            child: CustomPaint(
-              size: const Size(double.infinity, 120),
-              painter: _MapPainter(),
+          // Real coverage map, when we know where the locality is. Used to be
+          // a painted decoration showing the same invented streets for every ad.
+          if (lat != null && lng != null)
+            LiveMapView(
+              points: [
+                MapPoint(
+                  lat: lat!,
+                  lng: lng!,
+                  kind: MapPointKind.place,
+                  label: addr,
+                ),
+              ],
+              height: 120,
+              // Sits inside the scrolling detail sheet.
+              interactive: false,
             ),
-          ),
           // Address row
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
@@ -1490,58 +1560,6 @@ class _LocationCard extends StatelessWidget {
   }
 }
 
-// ── simple map painter ────────────────────────────────────────────────────────
-class _MapPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final W = size.width;
-    final H = size.height;
-
-    // Green patches
-    canvas.drawRect(
-      Rect.fromLTWH(-20, H * 0.5, W * 0.38, H * 0.7),
-      Paint()..color = const Color(0xFFDCEBDD),
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(W * 0.64, -10, W * 0.46, H * 0.5),
-      Paint()..color = const Color(0xFFDCEBDD),
-    );
-
-    // Road fill (white)
-    final roadPaint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 8
-      ..style = PaintingStyle.stroke;
-    canvas.drawLine(Offset(-10, H * 0.42), Offset(W + 10, H * 0.55), roadPaint);
-    canvas.drawLine(Offset(W * 0.31, -10), Offset(W * 0.38, H + 10), roadPaint);
-    canvas.drawLine(Offset(W * 0.64, -10), Offset(W * 0.64, H + 10), roadPaint);
-
-    // Road edge lines
-    final edgePaint = Paint()
-      ..color = const Color(0xFFD7DED8)
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke;
-    canvas.drawLine(Offset(-10, H * 0.42), Offset(W + 10, H * 0.55), edgePaint);
-    canvas.drawLine(Offset(W * 0.31, -10), Offset(W * 0.38, H + 10), edgePaint);
-    canvas.drawLine(Offset(W * 0.64, -10), Offset(W * 0.64, H + 10), edgePaint);
-
-    // Pin
-    final cx = W * 0.5;
-    final cy = H * 0.5;
-    final pinPath = Path()
-      ..moveTo(cx, cy + 14)
-      ..cubicTo(cx - 15, cy + 2, cx - 15, cy - 14, cx - 15, cy - 6)
-      ..arcToPoint(Offset(cx + 15, cy - 6), radius: const Radius.circular(15))
-      ..cubicTo(cx + 15, cy - 14, cx + 15, cy + 2, cx, cy + 14)
-      ..close();
-    canvas.drawPath(pinPath, Paint()..color = const Color(0xFFE2554C));
-    canvas.drawCircle(Offset(cx, cy - 6), 4.5, Paint()..color = Colors.white);
-  }
-
-  @override
-  bool shouldRepaint(_) => false;
-}
-
 // ── contact section ───────────────────────────────────────────────────────────
 class _ContactSection extends StatelessWidget {
   const _ContactSection({required this.phone});
@@ -1549,6 +1567,7 @@ class _ContactSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       children: [
         // Phone row
@@ -1595,7 +1614,7 @@ class _ContactSection extends StatelessWidget {
         // Call / WhatsApp / Email buttons
         Row(
           children: [
-            _CBtn(icon: Icons.phone_rounded, label: 'Call', iconColor: _tDp),
+            _CBtn(icon: Icons.phone_rounded, label: l10n.callAction, iconColor: _tDp),
             const SizedBox(width: 10),
             _CBtn(
               icon: Icons.chat_bubble_outline_rounded,
@@ -1603,7 +1622,7 @@ class _ContactSection extends StatelessWidget {
               iconColor: const Color(0xFF25D366),
             ),
             const SizedBox(width: 10),
-            _CBtn(icon: Icons.email_outlined, label: 'Email', iconColor: _tDp),
+            _CBtn(icon: Icons.email_outlined, label: l10n.email, iconColor: _tDp),
           ],
         ),
       ],
@@ -1659,6 +1678,7 @@ class _ReviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -1694,8 +1714,8 @@ class _ReviewCard extends StatelessWidget {
                     children: [
                       Icon(Icons.star_rounded, size: 13, color: _yd),
                       const SizedBox(width: 4),
-                      const Text(
-                        'Excellent',
+                      Text(
+                        l10n.excellent,
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
@@ -1718,8 +1738,8 @@ class _ReviewCard extends StatelessWidget {
             ],
           ),
           const Divider(color: _line, height: 24),
-          const Text(
-            '"Spotless work and very professional team. Booked again the same week." — Layla M.',
+          Text(
+            l10n.sampleVendorReview,
             style: TextStyle(
               fontSize: 12.5,
               fontWeight: FontWeight.w600,
@@ -1728,6 +1748,32 @@ class _ReviewCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _OrderButton extends StatelessWidget {
+  const _OrderButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _tDp,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+        onPressed: onTap,
+        child: Text(
+          AppLocalizations.of(context).placeOrder,
+          style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w900),
+        ),
       ),
     );
   }

@@ -47,4 +47,12 @@ class OffersPageModel {
   final int rewardPoints;
   final String rewardDiscountLabel;
   final List<OfferModel> offers;
+
+  factory OffersPageModel.fromJson(Map<String, dynamic> json) => OffersPageModel(
+        rewardPoints: json['rewardPoints'] as int,
+        rewardDiscountLabel: json['rewardDiscountLabel'] as String,
+        offers: (json['offers'] as List)
+            .map((e) => OfferModel.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
 }

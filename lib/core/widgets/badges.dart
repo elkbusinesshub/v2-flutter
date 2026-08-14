@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../l10n/app_localizations.dart';
 import '../theme/app_colors.dart';
 
 /// Small teal "Verified" badge used on provider cards.
@@ -22,7 +23,7 @@ class VerifiedBadge extends StatelessWidget {
               size: 9, color: onLight ? AppColors.tealDark : Colors.white),
           const SizedBox(width: 2),
           Text(
-            'Verified',
+            AppLocalizations.of(context).verified,
             style: TextStyle(
               fontSize: 9,
               fontWeight: FontWeight.w600,

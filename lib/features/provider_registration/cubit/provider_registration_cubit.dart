@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/errors/api_exception.dart';
 import '../../../data/models/provider_models.dart';
 import '../../../data/repositories/provider_repository.dart';
 
@@ -43,7 +44,12 @@ class ProviderRegistrationCubit extends Cubit<ProviderRegistrationState> {
       await _repository.submitRegistration(state.form);
       emit(state.copyWith(status: ProviderRegistrationStatus.submitted));
     } catch (e) {
-      emit(state.copyWith(status: ProviderRegistrationStatus.error, errorMessage: e.toString()));
+      // The backend rejects a second application with 409 "You already have a
+      // provider profile" — its message is clearer than anything generic.
+      emit(state.copyWith(
+        status: ProviderRegistrationStatus.error,
+        errorMessage: friendlyErrorMessage(e),
+      ));
     }
   }
 }

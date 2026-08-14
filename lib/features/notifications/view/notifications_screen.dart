@@ -5,6 +5,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../../data/models/notification_models.dart';
+import '../../../l10n/app_localizations.dart';
 import '../cubit/notifications_cubit.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -21,12 +22,21 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     context.read<NotificationsCubit>().loadNotifications();
   }
 
+  Future<void> _markAllRead() async {
+    final message = await context.read<NotificationsCubit>().markAllRead();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.grayLight,
       appBar: AppBar(
-        title: const Text('Notifications'),
+        title: Text(l10n.profileNotifications),
         backgroundColor: AppColors.dark,
         foregroundColor: Colors.white,
         actions: [
@@ -34,10 +44,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             builder: (context, state) {
               if (!state.hasUnread) return const SizedBox.shrink();
               return TextButton(
-                onPressed: () => context.read<NotificationsCubit>().markAllRead(),
-                child: const Text(
-                  'Mark all read',
-                  style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w600),
+                onPressed: state.isMarkingRead ? null : _markAllRead,
+                child: Text(
+                  state.isMarkingRead ? l10n.marking : l10n.markAllRead,
+                  style: const TextStyle(
+                      fontSize: 12, color: Colors.white, fontWeight: FontWeight.w600),
                 ),
               );
             },
@@ -50,15 +61,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               state.status == NotificationsStatus.initial) {
             return const LoadingView();
           }
+          if (state.status == NotificationsStatus.guest) {
+            return SignInRequiredView(
+              message: l10n.notificationsSignInPrompt,
+            );
+          }
           if (state.status == NotificationsStatus.error) {
             return ErrorRetryView(
-              message: state.errorMessage ?? 'Something went wrong',
+              message: state.errorMessage ?? l10n.errorGeneric,
               onRetry: () => context.read<NotificationsCubit>().loadNotifications(),
             );
           }
           if (state.notifications.isEmpty) {
-            return const EmptyStateView(
-              message: 'No notifications yet',
+            return EmptyStateView(
+              message: l10n.noNotificationsYet,
               icon: Icons.notifications_none,
             );
           }

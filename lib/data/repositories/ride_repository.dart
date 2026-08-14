@@ -1,37 +1,89 @@
-import '../datasources/api_client.dart';
-import '../datasources/dummy_data.dart';
+import '../../core/api/api_client.dart';
+import '../../core/api/api_endpoints.dart';
 import '../models/ride_models.dart';
 
+/// The taxi/rides vertical against the backend (`/rides/*`).
+///
+/// Backend contract:
+///  * `GET  /rides/types` → ride classes with fares and ETAs
+///  * `GET  /rides/current-estimate` → static route estimate for the header
+///  * `POST /rides/request` → driver-match preview (creates nothing)
+///  * `POST /rides/bookings` → booking with an assigned driver + pickup OTP
+///  * `POST /rides/bookings/:id/{start,complete,cancel,rate}` → lifecycle
 class RideRepository {
   RideRepository(this._client);
 
   final ApiClient _client;
 
-  Future<List<RideTypeModel>> getRideTypes() {
-    return _client.simulate(
-      '/rides/types',
-      () => dummyRideTypesJson.map((e) => RideTypeModel.fromJson(e)).toList(),
-    );
+  Future<List<RideTypeModel>> getRideTypes() async {
+    final data = await _client.get(ApiEndpoints.rideTypes) as List;
+    return data
+        .map((e) => RideTypeModel.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
-  Future<TaxiLocationModel> getCurrentTrip() {
-    return _client.simulate(
-      '/rides/current-estimate',
-      () => TaxiLocationModel.fromJson(dummyTaxiLocationJson),
-    );
+  Future<TaxiLocationModel> getCurrentTrip() async {
+    final data = await _client.get(ApiEndpoints.rideCurrentEstimate);
+    return TaxiLocationModel.fromJson(data as Map<String, dynamic>);
   }
 
-  Future<DriverMatchModel> findDrivers(String rideTypeId) {
-    return _client.simulateMutation(
-      '/rides/request',
-      {'rideTypeId': rideTypeId},
-      () => const DriverMatchModel(
-        driverName: 'Yusuf Khan',
-        vehicle: 'Toyota Corolla · White',
-        plateNumber: 'DXB 4471',
-        etaMinutes: 4,
-      ),
-      delay: const Duration(milliseconds: 1200),
+  Future<DriverMatchModel> findDrivers(String rideTypeId) async {
+    final data = await _client.post(
+      ApiEndpoints.rideRequest,
+      data: {'rideTypeId': rideTypeId},
     );
+    return DriverMatchModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<RideBookingModel> createBooking({
+    required String rideTypeId,
+    required String pickupAddress,
+    required String dropAddress,
+    required String paymentMethod,
+  }) async {
+    final data = await _client.post(ApiEndpoints.rideBookings, data: {
+      'rideTypeId': rideTypeId,
+      'pickupAddress': pickupAddress,
+      'dropAddress': dropAddress,
+      'paymentMethod': paymentMethod,
+    });
+    return RideBookingModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<List<RideBookingModel>> getBookings() async {
+    final data = await _client.get(ApiEndpoints.rideBookings) as List;
+    return data
+        .map((e) => RideBookingModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Rider confirms the pickup OTP with the driver.
+  Future<RideBookingModel> startRide(String bookingId, String otpCode) async {
+    final data = await _client.post(
+      ApiEndpoints.rideStart(bookingId),
+      data: {'otpCode': otpCode},
+    );
+    return RideBookingModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<RideBookingModel> completeRide(String bookingId) async {
+    final data = await _client.post(ApiEndpoints.rideComplete(bookingId));
+    return RideBookingModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<void> cancelRide(String bookingId) =>
+      _client.post(ApiEndpoints.rideCancel(bookingId));
+
+  /// Rates the driver (1–5) with an optional tip.
+  Future<RideBookingModel> rateRide(
+    String bookingId, {
+    required int stars,
+    int tip = 0,
+  }) async {
+    final data = await _client.post(
+      ApiEndpoints.rideRate(bookingId),
+      data: {'stars': stars, 'tip': tip},
+    );
+    return RideBookingModel.fromJson(data as Map<String, dynamic>);
   }
 }

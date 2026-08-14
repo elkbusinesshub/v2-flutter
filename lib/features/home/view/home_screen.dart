@@ -4,9 +4,11 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/widgets/location_picker_sheet.dart';
 import '../../../core/widgets/state_views.dart';
+import '../../../data/models/ad_models.dart';
 import '../../../data/models/home_models.dart';
 import '../../../data/models/provider_models.dart';
 import '../../../data/models/service_models.dart';
+import '../../../l10n/app_localizations.dart';
 import '../cubit/home_cubit.dart';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
@@ -14,7 +16,6 @@ const _t7  = Color(0xFF137A6D);
 const _t6  = Color(0xFF18927F);
 const _t5  = Color(0xFF21A892);
 const _y   = Color(0xFFF6CE19);
-const _yd  = Color(0xFFE6B500);
 const _i9  = Color(0xFF15241F);
 const _i7  = Color(0xFF27382F);
 const _i5  = Color(0xFF5E6E66);
@@ -103,11 +104,13 @@ class _HomeScreenState extends State<HomeScreen> {
           }
           if (state.status == HomeStatus.error || state.feed == null) {
             return ErrorRetryView(
-              message: state.errorMessage ?? 'Something went wrong',
+              message: state.errorMessage ??
+                  AppLocalizations.of(context).errorGeneric,
               onRetry: () => context.read<HomeCubit>().loadHome(),
             );
           }
           final feed = state.feed!;
+          final l10n = AppLocalizations.of(context);
           final top = MediaQuery.of(context).padding.top;
 
           // Canopy: teal gradient that ends in a wave crossing the middle of
@@ -146,30 +149,32 @@ class _HomeScreenState extends State<HomeScreen> {
                     sliver: SliverList(
                       delegate: SliverChildListDelegate([
                         _buildSectionHeading(
-                          tag: 'Best sellers', rest: 'near you',
-                          sub: 'Top-rated providers · up to 50% off',
+                          tag: l10n.homeBestSellersTag,
+                          rest: l10n.homeBestSellersRest,
+                          sub: l10n.homeBestSellersSub,
                           onArrow: widget.onSeeAllBestSellers,
                         ),
                       ]),
                     ),
                   ),
                   // Best sellers cards (full width)
-                  SliverToBoxAdapter(child: _buildBestSellersList()),
+                  SliverToBoxAdapter(child: _buildBestSellersList(feed.topSellers)),
                   // Deals heading + list
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(22, 28, 22, 0),
                     sliver: SliverList(
                       delegate: SliverChildListDelegate([
                         _buildSectionHeading(
-                          tag: 'Deals', tagTeal: true,
-                          rest: 'for you',
-                          sub: 'Pssst… handpicked just for you 👀',
+                          tag: l10n.homeDealsTag, tagTeal: true,
+                          rest: l10n.homeDealsRest,
+                          sub: l10n.homeDealsSub,
                         ),
                         const SizedBox(height: 14),
                       ]),
                     ),
                   ),
-                  SliverToBoxAdapter(child: _buildDealsList()),
+                  // Everything past the ranked rail — the same ads, no duplication.
+                  SliverToBoxAdapter(child: _buildDealsList(feed.topSellers.skip(3).toList())),
                   const SliverToBoxAdapter(child: SizedBox(height: 32)),
                 ],
               ),
@@ -228,12 +233,18 @@ class _HomeScreenState extends State<HomeScreen> {
               onTap: _chooseLocation,
               behavior: HitTestBehavior.opaque,
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Service at', style: _pj(size: 11.5, weight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.8), spacing: 0.3)),
+                Text(AppLocalizations.of(context).homeServiceAt, style: _pj(size: 11.5, weight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.8), spacing: 0.3)),
                 const SizedBox(height: 2),
                 Row(children: [
                   Flexible(
                     child: Text(
-                      _pickedLocation?.label ?? feed.location,
+                      // The address, not the label — "Home" alone does not
+                      // tell the user which address is selected.
+                      _pickedLocation?.address.isNotEmpty == true
+                          ? _pickedLocation!.address
+                          : (feed.locationDisplay.isEmpty
+                              ? AppLocalizations.of(context).homeSelectLocation
+                              : feed.locationDisplay),
                       overflow: TextOverflow.ellipsis,
                       style: _nu(size: 19, weight: FontWeight.w800, color: Colors.white, spacing: -0.2),
                     ),
@@ -297,10 +308,11 @@ class _HomeScreenState extends State<HomeScreen> {
   // ─── Services — 4-col grid, SVG icons, exact badge positioning ───────────
 
   Widget _buildServicesSection(List<ServiceCategoryModel> categories) {
-    const badges = <String, (String, bool)>{
-      'taxi':    ('Fast', true),
-      'elkstay': ('New', false),
-      'porter':  ('20% OFF', false),
+    final l10n = AppLocalizations.of(context);
+    final badges = <String, (String, bool)>{
+      'taxi':    (l10n.homeBadgeFast, true),
+      'elkstay': (l10n.homeBadgeNew, false),
+      'porter':  (l10n.homeBadgeTwentyOff, false),
     };
     const cols = 4;
     const hGap = 9.0;
@@ -308,11 +320,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Text('Services', style: _nu(size: 18, weight: FontWeight.w900, color: Colors.white, spacing: -0.2)),
+        Text(l10n.homeServices, style: _nu(size: 18, weight: FontWeight.w900, color: Colors.white, spacing: -0.2)),
         GestureDetector(
           onTap: widget.onSeeAllServices,
           child: Row(children: [
-            Text('See all', style: _pj(size: 13, weight: FontWeight.w800, color: Colors.white.withValues(alpha: 0.9))),
+            Text(l10n.commonSeeAll, style: _pj(size: 13, weight: FontWeight.w800, color: Colors.white.withValues(alpha: 0.9))),
             const SizedBox(width: 2),
             Icon(Icons.chevron_right_rounded, size: 15, color: Colors.white.withValues(alpha: 0.9)),
           ]),
@@ -405,9 +417,10 @@ class _HomeScreenState extends State<HomeScreen> {
   // ─── Promo carousel ───────────────────────────────────────────────────────
 
   Widget _buildPromoCarousel() {
-    const promos = [
-      (tag: 'New', title: '20% off your\nfirst booking', body: 'New members get an exclusive discount across every service.', cta: 'Claim offer', emoji: '🎁', c1: Color(0xFF3BBFA9), c2: Color(0xFF18927F)),
-      (tag: 'ELK Pro', title: 'Free rides\nevery week', body: 'Members unlock weekly perks, priority support and lower fees.', cta: 'Join now', emoji: '⚡', c1: Color(0xFF243630), c2: Color(0xFF15241F)),
+    final l10n = AppLocalizations.of(context);
+    final promos = [
+      (tag: l10n.homeBadgeNew, title: l10n.promoFirstBookingTitle, body: l10n.promoFirstBookingBody, cta: l10n.promoClaimOffer, emoji: '🎁', c1: const Color(0xFF3BBFA9), c2: const Color(0xFF18927F)),
+      (tag: 'ELK Pro', title: l10n.promoFreeRidesTitle, body: l10n.promoFreeRidesBody, cta: l10n.promoJoinNow, emoji: '⚡', c1: const Color(0xFF243630), c2: const Color(0xFF15241F)),
     ];
     return Column(children: [
       SizedBox(
@@ -510,144 +523,169 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ─── Best sellers ─────────────────────────────────────────────────────────
 
-  Widget _buildBestSellersList() {
-    const picks = [
-      (bg1: Color(0xFFE7F6F2), bg2: Color(0xFFBFE9DF), icon: '🧹', name: 'Royal Shine', title: 'Deep Home Clean',  dur: '90 min', rating: '4.9', now: 'AED 72', was: 'AED 85', off: '15% off', offTeal: false),
-      (bg1: Color(0xFFFEF6D8), bg2: Color(0xFFF6CE19), icon: '🚕', name: 'SpeedRide',   title: 'Airport Transfer',  dur: '5 min',  rating: '4.8', now: 'AED 12', was: 'AED 18', off: 'New',     offTeal: true),
-      (bg1: Color(0xFFFBE3EC), bg2: Color(0xFFF6C4D6), icon: '🔧', name: 'Express Fix', title: 'AC Service & Fix', dur: '60 min', rating: '4.7', now: 'AED 40', was: 'AED 58', off: '30% off', offTeal: false),
+  /// The engagement-ranked seller ads from the home feed. Each card shows the
+  /// two numbers the ranking is built on, rather than a star rating the
+  /// backend does not track or a discount that does not exist.
+  Widget _buildBestSellersList(List<AdModel> ads) {
+    if (ads.isEmpty) {
+      return _buildEmptyRail(AppLocalizations.of(context).homeNoSellerAds);
+    }
+
+    const tints = [
+      (Color(0xFFE7F6F2), Color(0xFFBFE9DF)),
+      (Color(0xFFFEF6D8), Color(0xFFF6CE19)),
+      (Color(0xFFFBE3EC), Color(0xFFF6C4D6)),
+      (Color(0xFFECE6FB), Color(0xFFD6CBF5)),
     ];
+
     return SizedBox(
       height: 228,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.fromLTRB(22, 14, 22, 6),
-        itemCount: picks.length,
+        itemCount: ads.length,
         itemBuilder: (context, i) {
-          final p = picks[i];
-          return Container(
-            width: 160,
-            margin: EdgeInsets.only(right: i < picks.length - 1 ? 14 : 0),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Container(
-                height: 130,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [p.bg1, p.bg2], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: const [BoxShadow(color: Color(0x0F143228), blurRadius: 8, offset: Offset(0, 2))],
+          final ad = ads[i];
+          final tint = tints[i % tints.length];
+          return GestureDetector(
+            onTap: widget.onSeeAllBestSellers,
+            child: Container(
+              width: 160,
+              margin: EdgeInsets.only(right: i < ads.length - 1 ? 14 : 0),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Container(
+                  height: 130,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [tint.$1, tint.$2], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: const [BoxShadow(color: Color(0x0F143228), blurRadius: 8, offset: Offset(0, 2))],
+                  ),
+                  child: Stack(children: [
+                    if (ad.imageUrls.isEmpty)
+                      Center(child: Text(ad.icon, style: const TextStyle(fontSize: 60)))
+                    else
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(18),
+                        child: Image.network(
+                          ad.imageUrls.first,
+                          width: double.infinity, height: 130, fit: BoxFit.cover,
+                          // A broken presigned URL must not blank the card.
+                          errorBuilder: (_, _, _) =>
+                              Center(child: Text(ad.icon, style: const TextStyle(fontSize: 60))),
+                        ),
+                      ),
+                    if (ad.isWishlisted)
+                      Positioned(top: 8, right: 8, child: Container(
+                        padding: const EdgeInsets.all(5),
+                        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                        child: const Icon(Icons.favorite, size: 13, color: Color(0xFFE2554C)),
+                      )),
+                    Positioned(left: 8, bottom: 8, child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                      decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.28), borderRadius: BorderRadius.circular(9)),
+                      child: Text(ad.sellerName, maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: _nu(size: 12, weight: FontWeight.w900, color: Colors.white)),
+                    )),
+                  ]),
                 ),
-                child: Stack(children: [
-                  Center(child: Text(p.icon, style: const TextStyle(fontSize: 60))),
-                  Positioned(top: 8, left: 8, child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: p.offTeal ? _t7 : _y, borderRadius: BorderRadius.circular(8), boxShadow: const [BoxShadow(color: Color(0x22000000), blurRadius: 7, offset: Offset(0, 3))]),
-                    child: Text(p.off, style: _nu(size: 11, weight: FontWeight.w900, color: p.offTeal ? Colors.white : const Color(0xFF3A2C00))),
-                  )),
-                  Positioned(left: 8, bottom: 8, child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.22), borderRadius: BorderRadius.circular(9)),
-                    child: Text(p.name, style: _nu(size: 13, weight: FontWeight.w900, color: Colors.white)),
-                  )),
+                const SizedBox(height: 10),
+                Text(ad.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: _nu(size: 14.5, weight: FontWeight.w800, color: _i9, spacing: -0.2, height: 1.15)),
+                const SizedBox(height: 5),
+                Row(children: [
+                  const Icon(Icons.favorite_border_rounded, size: 12, color: _i4),
+                  const SizedBox(width: 3),
+                  Text('${ad.wishlistCount}', style: _pj(size: 11.5, weight: FontWeight.w600, color: _i4)),
+                  const SizedBox(width: 9),
+                  const Icon(Icons.visibility_outlined, size: 12, color: _i4),
+                  const SizedBox(width: 3),
+                  Text('${ad.viewCount}', style: _pj(size: 11.5, weight: FontWeight.w600, color: _i4)),
                 ]),
-              ),
-              const SizedBox(height: 10),
-              Text(p.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: _nu(size: 14.5, weight: FontWeight.w800, color: _i9, spacing: -0.2, height: 1.15)),
-              const SizedBox(height: 5),
-              Row(children: [
-                const Icon(Icons.schedule_rounded, size: 12, color: _i4),
-                const SizedBox(width: 3),
-                Text(p.dur, style: _pj(size: 11.5, weight: FontWeight.w600, color: _i4)),
-                const SizedBox(width: 8),
-                const Icon(Icons.star_rounded, size: 13, color: _yd),
-                const SizedBox(width: 2),
-                Text(p.rating, style: _pj(size: 11.5, weight: FontWeight.w600, color: _i4)),
+                const SizedBox(height: 7),
+                Text(ad.priceLabel, maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: _nu(size: 15, weight: FontWeight.w900, color: _i9)),
               ]),
-              const SizedBox(height: 7),
-              Row(children: [
-                Text(p.now, style: _nu(size: 15, weight: FontWeight.w900, color: _i9)),
-                const SizedBox(width: 7),
-                Text(p.was, style: _pj(size: 12, weight: FontWeight.w700, color: _i4, height: 1.0).copyWith(decoration: TextDecoration.lineThrough)),
-              ]),
-            ]),
+            ),
           );
         },
       ),
     );
   }
 
+  Widget _buildEmptyRail(String message) => Padding(
+        padding: const EdgeInsets.fromLTRB(22, 18, 22, 6),
+        child: Row(children: [
+          const Icon(Icons.storefront_outlined, size: 18, color: _i4),
+          const SizedBox(width: 8),
+          Expanded(child: Text(message, style: _pj(size: 13, weight: FontWeight.w600, color: _i5))),
+        ]),
+      );
+
   // ─── Deals ────────────────────────────────────────────────────────────────
 
-  Widget _buildDealsList() {
-    const deals = [
-      (icon: '🧹', bg: Color(0xFFE7F6F2), off: '30% off', pro: true,  name: 'Royal Shine Cleaning', stars: '4.9', cnt: '(500)',   dur: '45–60 min',        price: 'From AED 65'),
-      (icon: '🚕', bg: Color(0xFFFEF6D8), off: '15% off', pro: true,  name: 'SpeedRide Taxi',        stars: '4.8', cnt: '(1,005)', dur: '3–8 min',           price: 'From AED 12'),
-      (icon: '🏨', bg: Color(0xFFECE6FB), off: '20% off', pro: false, name: 'Elite ELK Stay',        stars: '4.7', cnt: '(312)',   dur: 'Free cancellation', price: 'From AED 220/night'),
-    ];
+  /// The rest of the marketplace, below the ranked rail. Same card, real ads —
+  /// no invented "30% off" badges, since ads carry no discount.
+  Widget _buildDealsList(List<AdModel> ads) {
+    if (ads.isEmpty) {
+      return _buildEmptyRail(AppLocalizations.of(context).homeMoreListingsSoon);
+    }
+
+    const tints = [Color(0xFFE7F6F2), Color(0xFFFEF6D8), Color(0xFFECE6FB), Color(0xFFFBE3EC)];
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(22, 0, 22, 0),
       child: Column(
-        children: deals.map((d) => Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: _ln),
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: const [BoxShadow(color: Color(0x0F143228), blurRadius: 8, offset: Offset(0, 2))],
-            ),
-            child: Row(children: [
-              SizedBox(
-                width: 60, height: 66,
-                child: Stack(alignment: Alignment.topCenter, children: [
-                  Container(
-                    width: 60, height: 60,
-                    decoration: BoxDecoration(color: d.bg, borderRadius: BorderRadius.circular(15)),
-                    child: Center(child: Text(d.icon, style: const TextStyle(fontSize: 30))),
+        children: [
+          for (final (i, ad) in ads.indexed)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: GestureDetector(
+                onTap: widget.onSeeAllBestSellers,
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: _ln),
+                    boxShadow: const [BoxShadow(color: Color(0x0A143228), blurRadius: 10, offset: Offset(0, 3))],
                   ),
-                  Positioned(bottom: 0, left: 0, right: 0, child: Center(child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                    decoration: BoxDecoration(color: _y, borderRadius: BorderRadius.circular(8), boxShadow: const [BoxShadow(color: Color(0x22000000), blurRadius: 7, offset: Offset(0, 3))]),
-                    child: Text(d.off, style: _nu(size: 9.5, weight: FontWeight.w900, color: const Color(0xFF3A2C00))),
-                  ))),
-                ]),
-              ),
-              const SizedBox(width: 13),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  if (d.pro) ...[
+                  child: Row(children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                      decoration: BoxDecoration(color: _t6, borderRadius: BorderRadius.circular(5)),
-                      child: Text('PRO', style: _nu(size: 9, weight: FontWeight.w900, color: Colors.white, spacing: 0.3)),
+                      width: 58, height: 58,
+                      decoration: BoxDecoration(color: tints[i % tints.length], borderRadius: BorderRadius.circular(14)),
+                      child: Center(child: Text(ad.icon, style: const TextStyle(fontSize: 28))),
                     ),
-                    const SizedBox(width: 6),
-                  ],
-                  Expanded(child: Text(d.name, style: _nu(size: 15, weight: FontWeight.w800, color: _i9, spacing: -0.2), overflow: TextOverflow.ellipsis)),
-                ]),
-                const SizedBox(height: 4),
-                Row(children: [
-                  const Icon(Icons.star_rounded, size: 13, color: _yd),
-                  const SizedBox(width: 5),
-                  Text(d.stars, style: _pj(size: 12.5, weight: FontWeight.w800, color: _i9)),
-                  const SizedBox(width: 4),
-                  Text(d.cnt, style: _pj(size: 12.5, weight: FontWeight.w600, color: _i4)),
-                ]),
-                const SizedBox(height: 4),
-                Row(children: [
-                  const Icon(Icons.schedule_rounded, size: 12, color: _i4),
-                  const SizedBox(width: 4),
-                  Expanded(child: Text('${d.dur}  ·  ${d.price}', style: _pj(size: 11.5, weight: FontWeight.w600, color: _i4), overflow: TextOverflow.ellipsis)),
-                ]),
-              ])),
-            ]),
-          ),
-        )).toList(),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(ad.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: _nu(size: 15, weight: FontWeight.w800, color: _i9, spacing: -0.2)),
+                        const SizedBox(height: 3),
+                        Text(ad.sellerName, maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: _pj(size: 12, weight: FontWeight.w600, color: _i5)),
+                        const SizedBox(height: 5),
+                        Row(children: [
+                          const Icon(Icons.favorite_border_rounded, size: 12, color: _i4),
+                          const SizedBox(width: 3),
+                          Text('${ad.wishlistCount}', style: _pj(size: 11.5, weight: FontWeight.w600, color: _i4)),
+                          const SizedBox(width: 9),
+                          const Icon(Icons.visibility_outlined, size: 12, color: _i4),
+                          const SizedBox(width: 3),
+                          Text('${ad.viewCount}', style: _pj(size: 11.5, weight: FontWeight.w600, color: _i4)),
+                          const SizedBox(width: 9),
+                          Expanded(child: Text(ad.priceLabel, maxLines: 1, overflow: TextOverflow.ellipsis,
+                              style: _pj(size: 11.5, weight: FontWeight.w800, color: _i9))),
+                        ]),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
 }
-
-// ─── Wave painter ─────────────────────────────────────────────────────────────
 
 class _WavePainter extends CustomPainter {
   @override

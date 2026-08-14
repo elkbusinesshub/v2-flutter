@@ -41,10 +41,6 @@ class EditPhoneNumberRequested extends AuthEvent {
   const EditPhoneNumberRequested();
 }
 
-class GoogleSignInRequested extends AuthEvent {
-  const GoogleSignInRequested();
-}
-
 class GuestSignInRequested extends AuthEvent {
   const GuestSignInRequested();
 }

@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/theme/elkclean_colors.dart';
 import '../../core/widgets/location_picker_sheet.dart';
-import '../../data/datasources/elkclean_data.dart';
+import '../../core/widgets/state_views.dart';
+import '../../data/models/elkclean_models.dart';
+import '../../core/widgets/live_map_view.dart';
+import '../../l10n/app_localizations.dart';
+import 'cubit/elkclean_cubit.dart';
 
 // ─── Cleaning home-screen design tokens ───────────────────────────────────────
 const _hBg   = Color(0xFFF4F6F5);
@@ -20,36 +25,15 @@ const _hI7   = Color(0xFF27382F);
 const _hI5   = Color(0xFF5E6E66);
 const _hI4   = Color(0xFF8C9890);
 
-// 8 cleaning service tiles: (category id, label, svg asset, badge text or null)
-const _cleanTiles = [
-  ('cln',  'Home Cleaning',    'assets/icons/ic_home_clean.svg',  null),
-  ('deep', 'Deep Cleaning',    'assets/icons/ic_deep_clean.svg',  '40% Off'),
-  ('tnk',  'Water Tank',       'assets/icons/ic_water_tank.svg',  null),
-  ('sof',  'Sofa & Upholstery','assets/icons/ic_sofa.svg',        null),
-  ('crp',  'Carpet & Rug',     'assets/icons/ic_carpet.svg',      null),
-  ('kit',  'Kitchen Clean',    'assets/icons/ic_kitchen.svg',     null),
-  ('bth',  'Bathroom Clean',   'assets/icons/ic_bath.svg',        null),
-  ('lndr', 'Laundry & Iron',   'assets/icons/ic_laundry.svg',     null),
+// Offer-card gradient palettes, cycled by index (visual only — the offer
+// content comes from the backend).
+const _offerPalettes = [
+  (bg1: Color(0xFFF6EFDD), bg2: Color(0xFFEFE2C4)),
+  (bg1: Color(0xFFFBE6EC), bg2: Color(0xFFF6CBD8)),
+  (bg1: Color(0xFFE3F4EF), bg2: Color(0xFFC7EBE0)),
 ];
-
-// 3 offer cards data
-const _cleanOffers = [
-  (bg1: Color(0xFFF6EFDD), bg2: Color(0xFFEFE2C4), title: 'Instant Tank Refresh',    disc: 'Up to 60% off', code: 'TANK60',  time: '60',   unit: 'MINUTES', svg: 'assets/icons/ic_water_tank.svg', cat: 'Water Tank'),
-  (bg1: Color(0xFFFBE6EC), bg2: Color(0xFFF6CBD8), title: 'Sofa & Carpet Revival',   disc: 'Flat 50% off',  code: 'SOFA50',  time: '90',   unit: 'MINUTES', svg: 'assets/icons/ic_sofa.svg',       cat: 'Upholstery'),
-  (bg1: Color(0xFFE3F4EF), bg2: Color(0xFFC7EBE0), title: 'Sparkling Deep Clean',    disc: 'AED 70 off',    code: 'DEEP70',  time: 'Same', unit: 'DAY',     svg: 'assets/icons/ic_deep_clean.svg', cat: 'Deep Clean'),
-];
-
-// ─── Internal models ──────────────────────────────────────────────────────────
 
 enum _S { home, cat, detail, cart, sched, addr, checkout, pay, done }
-
-class _CartItem {
-  _CartItem({required this.code, required this.name, required this.price, this.qty = 1});
-  static final _empty = _CartItem(code: '', name: '', price: 0, qty: 0);
-  final String code, name;
-  final int price;
-  int qty;
-}
 
 // ─── Shell ───────────────────────────────────────────────────────────────────
 
@@ -62,83 +46,57 @@ class ElkCleanShell extends StatefulWidget {
 }
 
 class _ElkCleanShellState extends State<ElkCleanShell> {
+  AppLocalizations get l10n => AppLocalizations.of(context);
+
   final _hist = <_S>[_S.home];
   _S get _cur => _hist.last;
 
-  CleanCategory _cat = cleanCategories.first;
-  CleanService? _svc;
-  final _cart = <_CartItem>[];
-  int _dateIdx = 2;
-  String _time = '10:00';
-  String _pay = 'card';
-  int _addrIdx = 0;
-  int _paidTotal = 0;
-  final _addrs = <({String tag, String line, bool isHome})>[
-    (tag: 'Home', line: 'Tower 3, Apt 1204, Al Reem Island', isHome: true),
-    (tag: 'Villa', line: 'Khalifa City, Villa 22 (has tank)', isHome: false),
-  ];
+  CleanCategoryModel? _cat;
+  CleanServiceModel? _svc;
 
-  Future<void> _addAddress() async {
-    final picked = await showLocationPicker(context, title: 'Add service address');
-    if (picked == null) return;
-    setState(() {
-      _addrs.add((tag: picked.label, line: picked.address, isHome: false));
-      _addrIdx = _addrs.length - 1;
-    });
+  ElkCleanCubit get _cubit => context.read<ElkCleanCubit>();
+
+  @override
+  void initState() {
+    super.initState();
+    _cubit.loadHome();
   }
 
-  void _go(_S s) => setState(() => _hist.add(s));
+  Future<void> _addAddress() async {
+    final picked = await showLocationPicker(context, title: l10n.addServiceAddress);
+    if (picked == null || !mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final error = await _cubit.addAddress(label: picked.label, line: picked.address);
+    if (error != null) {
+      messenger.showSnackBar(SnackBar(content: Text(error)));
+    }
+  }
+
+  void _go(_S s) {
+    if (s == _S.sched) _cubit.loadBookingOptions();
+    setState(() => _hist.add(s));
+  }
+
   void _back() => _hist.length > 1 ? setState(() => _hist.removeLast()) : widget.onBack();
-
-  int _qty(String code) => _cart.firstWhere((i) => i.code == code, orElse: () => _CartItem._empty).qty;
-
-  void _add(CleanService s) => setState(() {
-        final i = _cart.indexWhere((c) => c.code == s.code);
-        i >= 0 ? _cart[i].qty++ : _cart.add(_CartItem(code: s.code, name: s.name, price: s.price));
-      });
-
-  void _inc(String code) => setState(() {
-        final i = _cart.indexWhere((c) => c.code == code);
-        if (i >= 0) { _cart[i].qty++; }
-      });
-
-  void _dec(String code) => setState(() {
-        final i = _cart.indexWhere((c) => c.code == code);
-        if (i < 0) return;
-        _cart[i].qty > 1 ? _cart[i].qty-- : _cart.removeAt(i);
-      });
-
-  void _remove(String code) => setState(() => _cart.removeWhere((c) => c.code == code));
-
-  int get _sub => _cart.fold(0, (s, i) => s + i.price * i.qty);
-  int get _total => _cart.isEmpty ? 0 : _sub + 10; // AED 10 supply fee
-
-  static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  static const _dows = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  static const _times = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00'];
-
-  late final _days = List.generate(6, (i) {
-    final d = DateTime(2026, 6, 19).add(Duration(days: i));
-    return (dow: i == 0 ? 'TODAY' : _dows[d.weekday - 1], num: d.day, mon: _months[d.month - 1]);
-  });
 
   @override
   Widget build(BuildContext context) {
+    final state = context.watch<ElkCleanCubit>().state;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (_, _) => _back(),
       child: Scaffold(
         backgroundColor: ElkCleanColors.porcelain,
         body: switch (_cur) {
-          _S.home     => _homeScreen(),
-          _S.cat      => _catScreen(),
-          _S.detail   => _detailScreen(),
-          _S.cart     => _cartScreen(),
-          _S.sched    => _schedScreen(),
-          _S.addr     => _addrScreen(),
-          _S.checkout => _checkoutScreen(),
-          _S.pay      => _payScreen(),
-          _S.done     => _doneScreen(),
+          _S.home     => _homeScreen(state),
+          _S.cat      => _catScreen(state),
+          _S.detail   => _detailScreen(state),
+          _S.cart     => _cartScreen(state),
+          _S.sched    => _schedScreen(state),
+          _S.addr     => _addrScreen(state),
+          _S.checkout => _checkoutScreen(state),
+          _S.pay      => _payScreen(state),
+          _S.done     => _doneScreen(state),
         },
       ),
     );
@@ -146,30 +104,47 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
 
   // ─── Home (new branded design) ────────────────────────────────────────────
 
-  Widget _homeScreen() {
+  Widget _homeScreen(ElkCleanState state) {
+    if (state.feedStatus == CleanViewStatus.guest) {
+      return SafeArea(
+        child: SignInRequiredView(
+          message: l10n.cleanSignInPrompt,
+        ),
+      );
+    }
+    if (state.feedStatus == CleanViewStatus.error) {
+      return SafeArea(
+        child: ErrorRetryView(
+          message: state.feedError ?? l10n.errorGeneric,
+          onRetry: _cubit.loadHome,
+        ),
+      );
+    }
+    final feed = state.feed;
+    if (feed == null) return const LoadingView();
     final top = MediaQuery.of(context).padding.top;
     return ColoredBox(
       color: _hBg,
       child: SingleChildScrollView(
         child: Column(children: [
-          _cleanHeader(top),
+          _cleanHeader(top, feed.location),
           const SizedBox(height: 20),
           // Service grid
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 22),
-            child: _cleanServiceGrid(),
+            child: _cleanServiceGrid(feed.categories),
           ),
           const SizedBox(height: 24),
           // Top offers
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 22),
             child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text('Top offers', style: GoogleFonts.nunito(fontSize: 19, fontWeight: FontWeight.w900, color: _hI9, letterSpacing: -0.3)),
+              Text(l10n.topOffers, style: GoogleFonts.nunito(fontSize: 19, fontWeight: FontWeight.w900, color: _hI9, letterSpacing: -0.3)),
               Text('See all ›', style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w700, color: _hT7)),
             ]),
           ),
           const SizedBox(height: 14),
-          _cleanOffersCarousel(),
+          _cleanOffersCarousel(feed.offers),
           const SizedBox(height: 16),
           // Trust strip
           _cleanTrustStrip(),
@@ -180,7 +155,7 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
   }
 
   // Teal gradient header with bubbles, greeting, search, centered deal text
-  Widget _cleanHeader(double top) {
+  Widget _cleanHeader(double top, String location) {
     return Stack(children: [
       // Teal gradient
       Container(
@@ -197,12 +172,12 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
           // Greeting row + bell
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Good afternoon', style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.82))),
+              Text(l10n.goodAfternoon, style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.82))),
               const SizedBox(height: 2),
               Row(children: [
                 const Icon(Icons.location_on, color: _hYel, size: 16),
                 const SizedBox(width: 6),
-                Text('Al Reem Island', style: GoogleFonts.nunito(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.3)),
+                Text(location, style: GoogleFonts.nunito(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.3)),
                 const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white, size: 16),
               ]),
             ])),
@@ -234,17 +209,17 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
             child: Row(children: [
               const Icon(Icons.search_rounded, color: _hT6, size: 18),
               const SizedBox(width: 11),
-              Text('Search "deep clean", "tank"…', style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: _hI4.withValues(alpha: 0.9))),
+              Text(l10n.cleanSearchHint, style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: _hI4.withValues(alpha: 0.9))),
             ]),
           ),
           const SizedBox(height: 18),
           // Centred deal text
-          Text('Play & Unlock Summer Deals!', textAlign: TextAlign.center,
+          Text(l10n.playUnlockDeals, textAlign: TextAlign.center,
             style: GoogleFonts.nunito(fontSize: 23, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.4)),
           const SizedBox(height: 5),
           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Text('Get Water Tank Cleaning ', style: GoogleFonts.plusJakartaSans(fontSize: 13.5, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.92))),
-            Text('AED 90 off', style: GoogleFonts.plusJakartaSans(fontSize: 13.5, fontWeight: FontWeight.w800, color: _hYel)),
+            Text(l10n.getWaterTankCleaning, style: GoogleFonts.plusJakartaSans(fontSize: 13.5, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.92))),
+            Text('₹90 off', style: GoogleFonts.plusJakartaSans(fontSize: 13.5, fontWeight: FontWeight.w800, color: _hYel)),
             Text(' & more', style: GoogleFonts.plusJakartaSans(fontSize: 13.5, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.92))),
             const SizedBox(width: 5),
             const Icon(Icons.chevron_right_rounded, color: Colors.white, size: 15),
@@ -267,12 +242,12 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
     ]);
   }
 
-  // 4-column grid, 8 tiles, yellow badges
-  Widget _cleanServiceGrid() {
+  // 4-column grid, yellow badges
+  Widget _cleanServiceGrid(List<CleanCategoryModel> categories) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Text('What needs cleaning?', style: GoogleFonts.nunito(fontSize: 19, fontWeight: FontWeight.w900, color: _hI9, letterSpacing: -0.3)),
-        Text('${_cleanTiles.length} services', style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w700, color: _hI4)),
+        Text(l10n.whatNeedsCleaning, style: GoogleFonts.nunito(fontSize: 19, fontWeight: FontWeight.w900, color: _hI9, letterSpacing: -0.3)),
+        Text('${categories.length} services', style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w700, color: _hI4)),
       ]),
       const SizedBox(height: 14),
       LayoutBuilder(builder: (context, constraints) {
@@ -281,14 +256,14 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
         const vGap = 12.0;
         final w = (constraints.maxWidth - (cols - 1) * hGap) / cols;
         final rows = <Widget>[];
-        for (int r = 0; r < ((_cleanTiles.length + cols - 1) ~/ cols); r++) {
+        for (int r = 0; r < ((categories.length + cols - 1) ~/ cols); r++) {
           if (r > 0) rows.add(const SizedBox(height: vGap));
           final items = <Widget>[];
           for (int c = 0; c < cols; c++) {
             if (c > 0) items.add(const SizedBox(width: hGap));
             final idx = r * cols + c;
-            if (idx < _cleanTiles.length) {
-              items.add(SizedBox(width: w, child: _cleanTile(_cleanTiles[idx], w)));
+            if (idx < categories.length) {
+              items.add(SizedBox(width: w, child: _cleanTile(categories[idx], w)));
             } else {
               items.add(SizedBox(width: w));
             }
@@ -303,12 +278,11 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
     ]);
   }
 
-  Widget _cleanTile((String, String, String, String?) tile, double w) {
-    final (id, label, svg, badge) = tile;
+  Widget _cleanTile(CleanCategoryModel cat, double w) {
     return GestureDetector(
       onTap: () {
-        final cat = cleanCategories.firstWhere((c) => c.id == id, orElse: () => cleanCategories.first);
         setState(() { _cat = cat; });
+        _cubit.openCategory(cat);
         _go(_S.cat);
       },
       child: Column(children: [
@@ -321,9 +295,9 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
               border: Border.all(color: _hLine, width: 1.5),
               boxShadow: const [BoxShadow(color: Color(0x0A143218), blurRadius: 8, offset: Offset(0, 2))],
             ),
-            child: Center(child: SvgPicture.asset(svg, width: 46, height: 46)),
+            child: Center(child: SvgPicture.asset(cat.svgAsset, width: 46, height: 46)),
           ),
-          if (badge != null)
+          if (cat.badge != null)
             Positioned(
               top: -8, left: 0, right: 0,
               child: Center(child: Container(
@@ -333,49 +307,50 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
                   borderRadius: BorderRadius.circular(8),
                   boxShadow: const [BoxShadow(color: Color(0x2E000000), blurRadius: 8, offset: Offset(0, 4))],
                 ),
-                child: Text(badge, style: GoogleFonts.nunito(fontSize: 9.5, fontWeight: FontWeight.w900, color: const Color(0xFF3A2C00))),
+                child: Text(cat.badge!, style: GoogleFonts.nunito(fontSize: 9.5, fontWeight: FontWeight.w900, color: const Color(0xFF3A2C00))),
               )),
             ),
         ]),
         const SizedBox(height: 8),
-        Text(label, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis,
+        Text(cat.label, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis,
           style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w800, color: _hI7, letterSpacing: -0.1, height: 1.2)),
       ]),
     );
   }
 
   // Horizontal offers carousel
-  Widget _cleanOffersCarousel() {
+  Widget _cleanOffersCarousel(List<CleanOfferModel> offers) {
     return SizedBox(
       height: 192,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
-        itemCount: _cleanOffers.length,
+        itemCount: offers.length,
         itemBuilder: (context, i) {
-          final o = _cleanOffers[i];
+          final o = offers[i];
+          final palette = _offerPalettes[i % _offerPalettes.length];
           return Container(
             width: 270,
-            margin: EdgeInsets.only(right: i < _cleanOffers.length - 1 ? 14 : 0),
+            margin: EdgeInsets.only(right: i < offers.length - 1 ? 14 : 0),
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [o.bg1, o.bg2], begin: Alignment.topLeft, end: Alignment.bottomRight),
+              gradient: LinearGradient(colors: [palette.bg1, palette.bg2], begin: Alignment.topLeft, end: Alignment.bottomRight),
               borderRadius: BorderRadius.circular(22),
               boxShadow: const [BoxShadow(color: Color(0x1A143228), blurRadius: 26, offset: Offset(0, 10))],
             ),
             child: Stack(clipBehavior: Clip.none, children: [
-              Positioned(right: -6, bottom: -6, child: Opacity(opacity: 0.88, child: SvgPicture.asset(o.svg, width: 96, height: 96))),
+              Positioned(right: -6, bottom: -6, child: Opacity(opacity: 0.88, child: SvgPicture.asset(o.svgAsset, width: 96, height: 96))),
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(o.title, style: GoogleFonts.nunito(fontSize: 18, fontWeight: FontWeight.w900, color: _hI9, letterSpacing: -0.3), maxLines: 2),
                 const SizedBox(height: 9),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
                   decoration: BoxDecoration(color: _hT7, borderRadius: BorderRadius.circular(999)),
-                  child: Text(o.disc, style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
+                  child: Text(o.discount, style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
                 ),
                 const SizedBox(height: 8),
                 Row(children: [
-                  Text('Code: ', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700, color: _hI5)),
+                  Text(l10n.codeLabel, style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700, color: _hI5)),
                   Text(o.code, style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700, color: _hI9, decoration: TextDecoration.underline)),
                 ]),
                 const Spacer(),
@@ -383,9 +358,9 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
                   padding: const EdgeInsets.fromLTRB(8, 6, 11, 6),
                   decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(999), boxShadow: const [BoxShadow(color: Color(0x0A143228), blurRadius: 8, offset: Offset(0, 2))]),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    SvgPicture.asset(o.svg, width: 20, height: 20),
+                    SvgPicture.asset(o.svgAsset, width: 20, height: 20),
                     const SizedBox(width: 6),
-                    Text(o.cat, style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: _hI9)),
+                    Text(o.category, style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: _hI9)),
                   ]),
                 ),
               ]),
@@ -413,8 +388,8 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
       decoration: BoxDecoration(color: _hT05, borderRadius: BorderRadius.circular(18)),
       child: Column(children: [
         for (final (icon, text) in [
-          (Icons.eco_outlined,       'Eco-friendly, child-safe products'),
-          (Icons.verified_outlined,  'Trained & uniformed cleaners'),
+          (Icons.eco_outlined,       l10n.ecoFriendlyProducts),
+          (Icons.verified_outlined,  l10n.trainedCleaners),
           (Icons.refresh_rounded,    '48-hour re-clean guarantee'),
         ])
           Padding(
@@ -431,10 +406,11 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
 
   // ─── Category ──────────────────────────────────────────────────────────────
 
-  Widget _catScreen() {
-    final services = cleanServices[_cat.id] ?? [];
+  Widget _catScreen(ElkCleanState state) {
+    final cat = _cat!;
+    final services = state.services;
     return Column(children: [
-      _CleanTopBar(title: _cat.label, onBack: _back, cartCount: _cart.length, onCartTap: () => _go(_S.cart)),
+      _CleanTopBar(title: cat.label, onBack: _back, cartCount: state.cartCount, onCartTap: () => _go(_S.cart)),
       Padding(
         padding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
         child: Container(
@@ -444,17 +420,27 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
             Container(
               width: 52, height: 52,
               decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(14)),
-              child: Icon(_cat.icon, size: 26, color: ElkCleanColors.citrus),
+              child: Icon(cat.icon, size: 26, color: ElkCleanColors.citrus),
             ),
             const SizedBox(width: 14),
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('${_cat.code} · ${services.length} services', style: const TextStyle(fontSize: 11, letterSpacing: 0.1, color: Color(0xFFA9E0DC), fontWeight: FontWeight.w700)),
+              Text('${cat.code} · ${services.length} services', style: const TextStyle(fontSize: 11, letterSpacing: 0.1, color: Color(0xFFA9E0DC), fontWeight: FontWeight.w700)),
               const SizedBox(height: 4),
-              Text(_cat.blurb, style: const TextStyle(fontSize: 14, color: Color(0xFFCFE6E4))),
+              Text(cat.blurb, style: const TextStyle(fontSize: 14, color: Color(0xFFCFE6E4))),
             ]),
           ]),
         ),
       ),
+      if (state.servicesStatus == CleanViewStatus.loading)
+        const Expanded(child: LoadingView())
+      else if (state.servicesStatus == CleanViewStatus.error)
+        Expanded(
+          child: ErrorRetryView(
+            message: state.servicesError ?? l10n.errorGeneric,
+            onRetry: () => _cubit.openCategory(cat),
+          ),
+        )
+      else
       Expanded(
         child: ListView.separated(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -462,7 +448,7 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
           separatorBuilder: (_, _) => const SizedBox(height: 12),
           itemBuilder: (context, i) {
             final s = services[i];
-            final qty = _qty(s.code);
+            final qty = state.qtyOf(s.id);
             return GestureDetector(
               onTap: () { setState(() { _svc = s; }); _go(_S.detail); },
               child: Container(
@@ -487,12 +473,12 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
                   const SizedBox(height: 6),
                   Text(s.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: ElkCleanColors.ink)),
                   const SizedBox(height: 4),
-                  Text(s.desc, style: const TextStyle(fontSize: 13, color: ElkCleanColors.sub, height: 1.4)),
+                  Text(s.description, style: const TextStyle(fontSize: 13, color: ElkCleanColors.sub, height: 1.4)),
                   const SizedBox(height: 8),
                   Row(children: [
                     const Icon(Icons.schedule, size: 13, color: ElkCleanColors.sub),
                     const SizedBox(width: 5),
-                    Text(s.dur, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: ElkCleanColors.sub)),
+                    Text(s.duration, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: ElkCleanColors.sub)),
                     const Padding(padding: EdgeInsets.symmetric(horizontal: 4), child: Text('·', style: TextStyle(color: ElkCleanColors.sub))),
                     const Icon(Icons.check, size: 13, color: ElkCleanColors.good),
                     const SizedBox(width: 4),
@@ -504,10 +490,10 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('AED ${s.price}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: ElkCleanColors.teal)),
+                      Text('₹${s.price}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: ElkCleanColors.teal)),
                       qty > 0
-                          ? _CleanStepper(qty: qty, onInc: () => _inc(s.code), onDec: () => _dec(s.code))
-                          : _CleanBtn(label: '+ Add', small: true, onTap: () => _add(s)),
+                          ? _CleanStepper(qty: qty, onInc: () => _cubit.incrementLine(s.id), onDec: () => _cubit.decrementLine(s.id))
+                          : _CleanBtn(label: '+ Add', small: true, onTap: () => _cubit.addService(s)),
                     ],
                   ),
                 ]),
@@ -516,16 +502,17 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
           },
         ),
       ),
-      if (_cart.isNotEmpty) _CartBar(count: _cart.length, total: _total, onTap: () => _go(_S.cart)),
+      if (state.cart.isNotEmpty) _CartBar(count: state.cartCount, total: state.total, onTap: () => _go(_S.cart)),
     ]);
   }
 
   // ─── Detail ────────────────────────────────────────────────────────────────
 
-  Widget _detailScreen() {
+  Widget _detailScreen(ElkCleanState state) {
     final s = _svc!;
+    final cat = _cat!;
     return Column(children: [
-      _CleanTopBar(title: '', onBack: _back, cartCount: _cart.length, onCartTap: () => _go(_S.cart)),
+      _CleanTopBar(title: '', onBack: _back, cartCount: state.cartCount, onCartTap: () => _go(_S.cart)),
       Expanded(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
@@ -536,18 +523,18 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
               padding: const EdgeInsets.all(24),
               clipBehavior: Clip.antiAlias,
               child: Stack(children: [
-                Positioned(right: -24, bottom: -24, child: Icon(_cat.icon, size: 150, color: Colors.white.withValues(alpha: 0.08))),
+                Positioned(right: -24, bottom: -24, child: Icon(cat.icon, size: 150, color: Colors.white.withValues(alpha: 0.08))),
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('${s.code} · ${_cat.label}', style: const TextStyle(fontSize: 11, letterSpacing: 0.1, color: Color(0xFF8FD4D0), fontWeight: FontWeight.w700)),
+                  Text('${s.code} · ${cat.label}', style: const TextStyle(fontSize: 11, letterSpacing: 0.1, color: Color(0xFF8FD4D0), fontWeight: FontWeight.w700)),
                   const SizedBox(height: 10),
                   Text(s.name, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white, height: 1.05)),
                   const SizedBox(height: 16),
                   Row(children: [
-                    _MetaTile(label: 'From', val: 'AED ${s.price}'),
+                    _MetaTile(label: l10n.fromLabel, val: '₹${s.price}'),
                     const SizedBox(width: 24),
-                    _MetaTile(label: 'Duration', val: s.dur),
+                    _MetaTile(label: l10n.duration, val: s.duration),
                     const SizedBox(width: 24),
-                    const _MetaTile(label: 'Rating', val: '4.9★'),
+                    _MetaTile(label: l10n.profileRating, val: '4.9★'),
                   ]),
                 ]),
               ]),
@@ -556,7 +543,7 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
             // Process timeline (Water Tank only)
             if (s.steps != null) ...[
               const SizedBox(height: 20),
-              const Text('HOW WE DO IT', style: TextStyle(fontSize: 10, color: ElkCleanColors.sub, letterSpacing: 0.18, fontWeight: FontWeight.w700)),
+              Text(l10n.howWeDoIt, style: const TextStyle(fontSize: 10, color: ElkCleanColors.sub, letterSpacing: 0.18, fontWeight: FontWeight.w700)),
               const SizedBox(height: 14),
               _ProcessTimeline(steps: s.steps!),
               const SizedBox(height: 16),
@@ -565,8 +552,8 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(color: ElkCleanColors.tealSoft, borderRadius: BorderRadius.circular(16)),
                 child: Column(children: [
-                  const Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                    Text('Hygiene level after service', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: ElkCleanColors.ink)),
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                    Text(l10n.hygieneAfterService, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: ElkCleanColors.ink)),
                     Text('99% safe', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: ElkCleanColors.good)),
                   ]),
                   const SizedBox(height: 8),
@@ -587,9 +574,9 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  const Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                    Text('before', style: TextStyle(fontSize: 11, color: ElkCleanColors.sub)),
-                    Text('after · lab-tested', style: TextStyle(fontSize: 11, color: ElkCleanColors.sub)),
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                    Text(l10n.beforeLabel, style: const TextStyle(fontSize: 11, color: ElkCleanColors.sub)),
+                    Text(l10n.afterLabTested, style: const TextStyle(fontSize: 11, color: ElkCleanColors.sub)),
                   ]),
                 ]),
               ),
@@ -624,14 +611,14 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
                   child: const Center(child: Text('EC', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white))),
                 ),
                 const SizedBox(width: 13),
-                const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    Text('ELKclean crew', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: ElkCleanColors.ink)),
-                    SizedBox(width: 6),
-                    Icon(Icons.verified, size: 15, color: ElkCleanColors.good),
+                    Text(l10n.elkCleanCrew, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: ElkCleanColors.ink)),
+                    const SizedBox(width: 6),
+                    const Icon(Icons.verified, size: 15, color: ElkCleanColors.good),
                   ]),
-                  SizedBox(height: 2),
-                  Text('Uniformed · eco kit · 4.9 from 1,200+ cleans', style: TextStyle(fontSize: 13, color: ElkCleanColors.sub)),
+                  const SizedBox(height: 2),
+                  Text(l10n.crewBlurb, style: const TextStyle(fontSize: 13, color: ElkCleanColors.sub)),
                 ])),
               ]),
             ),
@@ -640,21 +627,22 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
       ),
       _CleanStickyBar(
         left: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('PRICE', style: TextStyle(fontSize: 10, color: ElkCleanColors.sub, letterSpacing: 0.1)),
-          Text('AED ${s.price}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: ElkCleanColors.teal)),
+          Text(l10n.priceCaps, style: const TextStyle(fontSize: 10, color: ElkCleanColors.sub, letterSpacing: 0.1)),
+          Text('₹${s.price}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: ElkCleanColors.teal)),
         ]),
-        right: _CleanBtn(label: '+ Add & continue', onTap: () { _add(s); _go(_S.cart); }),
+        right: _CleanBtn(label: '+ Add & continue', onTap: () { _cubit.addService(s); _go(_S.cart); }),
       ),
     ]);
   }
 
   // ─── Cart ──────────────────────────────────────────────────────────────────
 
-  Widget _cartScreen() {
+  Widget _cartScreen(ElkCleanState state) {
+    final cart = state.cart;
     return Column(children: [
-      _CleanTopBar(title: 'Your clean plan', onBack: _back),
+      _CleanTopBar(title: l10n.yourCleanPlan, onBack: _back),
       Expanded(
-        child: _cart.isEmpty
+        child: cart.isEmpty
             ? _EmptyCart(onBrowse: () { setState(() { _hist.clear(); _hist.add(_S.home); }); })
             : SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
@@ -667,32 +655,32 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
                         color: ElkCleanColors.teal,
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                          const Text('CLEAN PLAN #ELC-3391', style: TextStyle(fontSize: 10, letterSpacing: 0.1, color: Color(0xFFA9E0DC), fontWeight: FontWeight.w700)),
-                          Text('${_cart.length} item(s)', style: const TextStyle(fontSize: 11, color: Colors.white)),
+                          Text(l10n.cleanPlanCaps, style: TextStyle(fontSize: 10, letterSpacing: 0.1, color: Color(0xFFA9E0DC), fontWeight: FontWeight.w700)),
+                          Text('${cart.length} item(s)', style: const TextStyle(fontSize: 11, color: Colors.white)),
                         ]),
                       ),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Column(
-                          children: List.generate(_cart.length, (i) {
-                            final item = _cart[i];
+                          children: List.generate(cart.length, (i) {
+                            final item = cart[i];
                             return Container(
                               padding: const EdgeInsets.symmetric(vertical: 14),
-                              decoration: i < _cart.length - 1
+                              decoration: i < cart.length - 1
                                   ? BoxDecoration(border: Border(bottom: BorderSide(color: ElkCleanColors.line.withValues(alpha: 0.7))))
                                   : null,
                               child: Row(children: [
                                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                  Text(item.code, style: const TextStyle(fontSize: 10, color: ElkCleanColors.teal, fontWeight: FontWeight.w700)),
+                                  Text(item.service.code, style: const TextStyle(fontSize: 10, color: ElkCleanColors.teal, fontWeight: FontWeight.w700)),
                                   const SizedBox(height: 2),
-                                  Text(item.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: ElkCleanColors.ink)),
+                                  Text(item.service.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: ElkCleanColors.ink)),
                                   const SizedBox(height: 3),
-                                  Text('AED ${item.price}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: ElkCleanColors.teal)),
+                                  Text('₹${item.service.price}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: ElkCleanColors.teal)),
                                 ])),
-                                _CleanStepper(qty: item.qty, onInc: () => _inc(item.code), onDec: () => _dec(item.code)),
+                                _CleanStepper(qty: item.quantity, onInc: () => _cubit.incrementLine(item.service.id), onDec: () => _cubit.decrementLine(item.service.id)),
                                 const SizedBox(width: 10),
                                 GestureDetector(
-                                  onTap: () => _remove(item.code),
+                                  onTap: () => _cubit.removeLine(item.service.id),
                                   child: const Icon(Icons.delete_outline, size: 18, color: ElkCleanColors.sub),
                                 ),
                               ]),
@@ -712,14 +700,14 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
                         child: Row(children: [
                           const Icon(Icons.auto_awesome, size: 16, color: ElkCleanColors.citrus),
                           const SizedBox(width: 8),
-                          Text('Add promo code', style: TextStyle(color: ElkCleanColors.sub.withValues(alpha: 0.8), fontSize: 14)),
+                          Text(l10n.addPromoCode, style: TextStyle(color: ElkCleanColors.sub.withValues(alpha: 0.8), fontSize: 14)),
                         ]),
                       ),
                     ),
                     const SizedBox(width: 10),
                     Container(
                       decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: ElkCleanColors.line, width: 1.5)),
-                      child: TextButton(onPressed: () {}, child: const Text('Apply', style: TextStyle(fontWeight: FontWeight.w700, color: ElkCleanColors.teal))),
+                      child: TextButton(onPressed: () {}, child: Text(l10n.commonApply, style: const TextStyle(fontWeight: FontWeight.w700, color: ElkCleanColors.teal))),
                     ),
                   ]),
                   const SizedBox(height: 14),
@@ -727,20 +715,20 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
                     decoration: BoxDecoration(color: ElkCleanColors.card, borderRadius: BorderRadius.circular(16), border: Border.all(color: ElkCleanColors.line, width: 1.5)),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: Column(children: [
-                      _TotalRow(label: 'Subtotal', value: 'AED $_sub'),
-                      _TotalRow(label: 'Eco supplies & setup', value: 'AED 10', muted: true),
+                      _TotalRow(label: l10n.subtotal, value: '₹${state.subtotal}'),
+                      _TotalRow(label: l10n.ecoSuppliesSetup, value: '₹${state.supplyFee}', muted: true),
                       Divider(color: ElkCleanColors.line.withValues(alpha: 0.7)),
-                      _TotalRow(label: 'Total', value: 'AED $_total', bold: true),
+                      _TotalRow(label: l10n.total, value: '₹${state.total}', bold: true),
                     ]),
                   ),
                 ]),
               ),
       ),
-      if (_cart.isNotEmpty)
+      if (cart.isNotEmpty)
         _CleanStickyBar(
           left: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('TOTAL', style: TextStyle(fontSize: 10, color: ElkCleanColors.sub, letterSpacing: 0.1)),
-            Text('AED $_total', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: ElkCleanColors.teal)),
+            Text(l10n.totalCaps, style: TextStyle(fontSize: 10, color: ElkCleanColors.sub, letterSpacing: 0.1)),
+            Text('₹${state.total}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: ElkCleanColors.teal)),
           ]),
           right: _CleanBtn(label: 'Schedule clean →', onTap: () => _go(_S.sched)),
         ),
@@ -749,26 +737,44 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
 
   // ─── Schedule ──────────────────────────────────────────────────────────────
 
-  Widget _schedScreen() {
+  Widget _schedScreen(ElkCleanState state) {
+    if (state.optionsStatus == CleanViewStatus.loading || state.optionsStatus == CleanViewStatus.initial) {
+      return Column(children: [
+        _CleanTopBar(title: l10n.pickASlot, onBack: _back),
+        const Expanded(child: LoadingView()),
+      ]);
+    }
+    if (state.optionsStatus == CleanViewStatus.error || state.options == null) {
+      return Column(children: [
+        _CleanTopBar(title: l10n.pickASlot, onBack: _back),
+        Expanded(
+          child: ErrorRetryView(
+            message: state.optionsError ?? 'Something went wrong',
+            onRetry: _cubit.loadBookingOptions,
+          ),
+        ),
+      ]);
+    }
+    final options = state.options!;
     return Column(children: [
-      _CleanTopBar(title: 'Pick a slot', onBack: _back),
+      _CleanTopBar(title: l10n.pickASlot, onBack: _back),
       Expanded(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(18),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('SELECT DATE', style: TextStyle(fontSize: 10, color: ElkCleanColors.sub, letterSpacing: 0.18, fontWeight: FontWeight.w700)),
+            Text(l10n.selectDate, style: const TextStyle(fontSize: 10, color: ElkCleanColors.sub, letterSpacing: 0.18, fontWeight: FontWeight.w700)),
             const SizedBox(height: 12),
             SizedBox(
               height: 88,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                itemCount: _days.length,
+                itemCount: options.dates.length,
                 separatorBuilder: (_, _) => const SizedBox(width: 10),
                 itemBuilder: (context, i) {
-                  final d = _days[i];
-                  final on = _dateIdx == i;
+                  final d = options.dates[i];
+                  final on = state.dateIndex == i;
                   return GestureDetector(
-                    onTap: () => setState(() => _dateIdx = i),
+                    onTap: () => _cubit.selectDate(i),
                     child: Container(
                       width: 62,
                       decoration: BoxDecoration(
@@ -777,9 +783,9 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
                         border: Border.all(color: on ? ElkCleanColors.teal : ElkCleanColors.line, width: 1.5),
                       ),
                       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        Text(d.dow, style: TextStyle(fontSize: 10, color: on ? Colors.white.withValues(alpha: 0.8) : ElkCleanColors.sub, fontWeight: FontWeight.w700)),
-                        Text('${d.num}', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: on ? Colors.white : ElkCleanColors.ink)),
-                        Text(d.mon, style: TextStyle(fontSize: 11, color: on ? Colors.white.withValues(alpha: 0.7) : ElkCleanColors.sub)),
+                        Text(d.weekday, style: TextStyle(fontSize: 10, color: on ? Colors.white.withValues(alpha: 0.8) : ElkCleanColors.sub, fontWeight: FontWeight.w700)),
+                        Text('${d.day}', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: on ? Colors.white : ElkCleanColors.ink)),
+                        Text(d.monthLabel, style: TextStyle(fontSize: 11, color: on ? Colors.white.withValues(alpha: 0.7) : ElkCleanColors.sub)),
                       ]),
                     ),
                   );
@@ -787,18 +793,18 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
               ),
             ),
             const SizedBox(height: 26),
-            const Text('ARRIVAL WINDOW', style: TextStyle(fontSize: 10, color: ElkCleanColors.sub, letterSpacing: 0.18, fontWeight: FontWeight.w700)),
+            Text(l10n.arrivalWindow, style: const TextStyle(fontSize: 10, color: ElkCleanColors.sub, letterSpacing: 0.18, fontWeight: FontWeight.w700)),
             const SizedBox(height: 12),
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: 11, mainAxisSpacing: 11, childAspectRatio: 1.8),
-              itemCount: _times.length,
+              itemCount: state.availableTimeSlots.length,
               itemBuilder: (context, i) {
-                final t = _times[i];
-                final on = _time == t;
+                final t = state.availableTimeSlots[i];
+                final on = state.timeSlot == t;
                 return GestureDetector(
-                  onTap: () => setState(() => _time = t),
+                  onTap: () => _cubit.selectTimeSlot(t),
                   child: Container(
                     decoration: BoxDecoration(
                       color: on ? ElkCleanColors.citrusSoft : ElkCleanColors.card,
@@ -807,7 +813,7 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
                     ),
                     child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                       Text(t, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: on ? ElkCleanColors.ink : ElkCleanColors.ink)),
-                      Text(i == 0 ? 'Fills fast' : 'Available', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: i == 0 ? ElkCleanColors.citrus : ElkCleanColors.sub)),
+                      Text(i == 0 ? l10n.fillsFast : l10n.available, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: i == 0 ? ElkCleanColors.citrus : ElkCleanColors.sub)),
                     ]),
                   ),
                 );
@@ -817,10 +823,10 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
             Container(
               decoration: BoxDecoration(color: ElkCleanColors.lineSoft, borderRadius: BorderRadius.circular(14)),
               padding: const EdgeInsets.all(14),
-              child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Icon(Icons.schedule, size: 18, color: ElkCleanColors.teal),
-                SizedBox(width: 10),
-                Expanded(child: Text("Your crew arrives within a 2-hour window with all supplies. Live tracking link sent on the day.", style: TextStyle(fontSize: 13, color: ElkCleanColors.ink, height: 1.45))),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Icon(Icons.schedule, size: 18, color: ElkCleanColors.teal),
+                const SizedBox(width: 10),
+                Expanded(child: Text(l10n.crewArrivalNote, style: const TextStyle(fontSize: 13, color: ElkCleanColors.ink, height: 1.45))),
               ]),
             ),
           ]),
@@ -832,51 +838,50 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
 
   // ─── Address ───────────────────────────────────────────────────────────────
 
-  Widget _addrScreen() {
-    final addrs = _addrs;
+  Widget _addrScreen(ElkCleanState state) {
+    final addrs = state.options?.addresses ?? const <CleanAddressModel>[];
     return Column(children: [
-      _CleanTopBar(title: 'Service address', onBack: _back),
+      _CleanTopBar(title: l10n.serviceAddress, onBack: _back),
       Expanded(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
           child: Column(children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(18),
-              child: SizedBox(
-                height: 150,
-                child: Stack(fit: StackFit.expand, children: [
-                  Container(color: ElkCleanColors.tealDeep),
-                  CustomPaint(painter: _MapGridPainter()),
-                  const Center(child: Icon(Icons.location_on, size: 40, color: ElkCleanColors.citrus)),
-                ]),
-              ),
+            _AddressMap(
+              address: state.selectedAddress ?? (addrs.isEmpty ? null : addrs.first),
+              tint: ElkCleanColors.tealDeep,
+              pin: ElkCleanColors.citrus,
             ),
             const SizedBox(height: 18),
-            const Align(alignment: Alignment.centerLeft, child: Text('SAVED PLACES', style: TextStyle(fontSize: 10, color: ElkCleanColors.sub, letterSpacing: 0.18, fontWeight: FontWeight.w700))),
+            Align(alignment: Alignment.centerLeft, child: Text(l10n.savedPlaces, style: const TextStyle(fontSize: 10, color: ElkCleanColors.sub, letterSpacing: 0.18, fontWeight: FontWeight.w700))),
             const SizedBox(height: 12),
-            for (int i = 0; i < addrs.length; i++) ...[
+            if (addrs.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                child: Text(l10n.noSavedAddresses, style: const TextStyle(fontSize: 13, color: ElkCleanColors.sub)),
+              ),
+            for (final addr in addrs) ...[
               GestureDetector(
-                onTap: () => setState(() => _addrIdx = i),
+                onTap: () => _cubit.selectAddress(addr.id),
                 child: Container(
                   decoration: BoxDecoration(
                     color: ElkCleanColors.card,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: _addrIdx == i ? ElkCleanColors.teal : ElkCleanColors.line, width: 1.5),
+                    border: Border.all(color: state.addressId == addr.id ? ElkCleanColors.teal : ElkCleanColors.line, width: 1.5),
                   ),
                   padding: const EdgeInsets.all(15),
                   child: Row(children: [
                     Container(
                       width: 42, height: 42,
-                      decoration: BoxDecoration(color: _addrIdx == i ? ElkCleanColors.teal : ElkCleanColors.lineSoft, borderRadius: BorderRadius.circular(12)),
-                      child: Icon(addrs[i].isHome ? Icons.home : Icons.location_on, size: 20, color: _addrIdx == i ? Colors.white : ElkCleanColors.teal),
+                      decoration: BoxDecoration(color: state.addressId == addr.id ? ElkCleanColors.teal : ElkCleanColors.lineSoft, borderRadius: BorderRadius.circular(12)),
+                      child: Icon(addr.isDefault ? Icons.home : Icons.location_on, size: 20, color: state.addressId == addr.id ? Colors.white : ElkCleanColors.teal),
                     ),
                     const SizedBox(width: 13),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(addrs[i].tag, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: ElkCleanColors.ink)),
+                      Text(addr.label, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: ElkCleanColors.ink)),
                       const SizedBox(height: 2),
-                      Text(addrs[i].line, style: const TextStyle(fontSize: 13, color: ElkCleanColors.sub)),
+                      Text(addr.line, style: const TextStyle(fontSize: 13, color: ElkCleanColors.sub)),
                     ])),
-                    if (_addrIdx == i) Container(width: 22, height: 22, decoration: const BoxDecoration(color: ElkCleanColors.teal, shape: BoxShape.circle), child: const Icon(Icons.check, size: 14, color: Colors.white)),
+                    if (state.addressId == addr.id) Container(width: 22, height: 22, decoration: const BoxDecoration(color: ElkCleanColors.teal, shape: BoxShape.circle), child: const Icon(Icons.check, size: 14, color: Colors.white)),
                   ]),
                 ),
               ),
@@ -885,31 +890,40 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
             TextButton.icon(
               onPressed: _addAddress,
               icon: const Icon(Icons.add, size: 17, color: ElkCleanColors.teal),
-              label: const Text('Add new address', style: TextStyle(fontWeight: FontWeight.w700, color: ElkCleanColors.teal, fontSize: 14)),
+              label: Text(l10n.addNewAddress, style: const TextStyle(fontWeight: FontWeight.w700, color: ElkCleanColors.teal, fontSize: 14)),
               style: TextButton.styleFrom(minimumSize: const Size(double.infinity, 50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: ElkCleanColors.line, width: 1.5))),
             ),
           ]),
         ),
       ),
-      _CleanStickyBar(right: _CleanBtn(full: true, label: 'Continue to checkout →', onTap: () => _go(_S.checkout))),
+      _CleanStickyBar(right: _CleanBtn(full: true, label: 'Continue to checkout →', onTap: () {
+        if (state.addressId == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(l10n.addServiceAddressFirst)),
+          );
+          return;
+        }
+        _go(_S.checkout);
+      })),
     ]);
   }
 
   // ─── Checkout ──────────────────────────────────────────────────────────────
 
-  Widget _checkoutScreen() {
-    final d = _days[_dateIdx];
+  Widget _checkoutScreen(ElkCleanState state) {
+    final d = state.selectedDate;
+    final address = state.selectedAddress;
     return Column(children: [
-      _CleanTopBar(title: 'Review & confirm', onBack: _back),
+      _CleanTopBar(title: l10n.reviewConfirm, onBack: _back),
       Expanded(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
           child: Column(children: [
-            _InfoRow(icon: Icons.calendar_today, label: 'When', value: '${d.dow}, ${d.num} ${d.mon} · $_time', onEdit: () => _go(_S.sched)),
+            _InfoRow(icon: Icons.calendar_today, label: l10n.whenLabel, value: d == null ? '—' : '${d.weekday}, ${d.day} ${d.monthLabel} · ${state.timeSlot ?? ''}', onEdit: () => _go(_S.sched)),
             const SizedBox(height: 12),
-            _InfoRow(icon: Icons.location_on, label: 'Where', value: 'Home · Tower 3, Apt 1204, Al Reem', onEdit: () => _go(_S.addr)),
+            _InfoRow(icon: Icons.location_on, label: l10n.whereLabel, value: address == null ? '—' : '${address.label} · ${address.line}', onEdit: () => _go(_S.addr)),
             const SizedBox(height: 12),
-            const _InfoRow(icon: Icons.person, label: 'Contact', value: 'Verified · +971 5•••• 4821'),
+            _InfoRow(icon: Icons.person, label: l10n.contactLabel, value: l10n.verifiedAccount),
             const SizedBox(height: 14),
             Container(
               decoration: BoxDecoration(color: ElkCleanColors.card, borderRadius: BorderRadius.circular(16), border: Border.all(color: ElkCleanColors.line, width: 1.5)),
@@ -918,18 +932,18 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
                   child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                    const Text('Order summary', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: ElkCleanColors.ink)),
-                    TextButton(onPressed: () => _go(_S.cart), child: const Text('Edit', style: TextStyle(color: ElkCleanColors.citrus, fontWeight: FontWeight.w700, fontSize: 13))),
+                    Text(l10n.orderSummary, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: ElkCleanColors.ink)),
+                    TextButton(onPressed: () => _go(_S.cart), child: Text(l10n.commonEdit, style: const TextStyle(color: ElkCleanColors.citrus, fontWeight: FontWeight.w700, fontSize: 13))),
                   ]),
                 ),
                 Divider(color: ElkCleanColors.line.withValues(alpha: 0.7), height: 1),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Column(children: [
-                    ..._cart.map((i) => _TotalRow(label: '${i.name} ×${i.qty}', value: 'AED ${i.price * i.qty}')),
-                    _TotalRow(label: 'Eco supplies & setup', value: 'AED 10', muted: true),
+                    ...state.cart.map((i) => _TotalRow(label: '${i.service.name} ×${i.quantity}', value: '₹${i.lineTotal}')),
+                    _TotalRow(label: l10n.ecoSuppliesSetup, value: '₹${state.supplyFee}', muted: true),
                     Divider(color: ElkCleanColors.line.withValues(alpha: 0.7)),
-                    _TotalRow(label: 'Total to pay', value: 'AED $_total', bold: true),
+                    _TotalRow(label: l10n.totalToPay, value: '₹${state.total}', bold: true),
                   ]),
                 ),
               ]),
@@ -938,10 +952,10 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
             Container(
               decoration: BoxDecoration(color: ElkCleanColors.citrusSoft, borderRadius: BorderRadius.circular(14)),
               padding: const EdgeInsets.all(14),
-              child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Icon(Icons.shield, size: 20, color: ElkCleanColors.citrus),
-                SizedBox(width: 10),
-                Expanded(child: Text("Not happy? We re-clean free within 48 hours. Free cancellation up to 2h before.", style: TextStyle(fontSize: 13, color: ElkCleanColors.ink, height: 1.4))),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Icon(Icons.shield, size: 20, color: ElkCleanColors.citrus),
+                const SizedBox(width: 10),
+                Expanded(child: Text(l10n.recleanGuarantee, style: const TextStyle(fontSize: 13, color: ElkCleanColors.ink, height: 1.4))),
               ]),
             ),
           ]),
@@ -949,8 +963,8 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
       ),
       _CleanStickyBar(
         left: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('TOTAL', style: TextStyle(fontSize: 10, color: ElkCleanColors.sub, letterSpacing: 0.1)),
-          Text('AED $_total', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: ElkCleanColors.teal)),
+          Text(l10n.totalCaps, style: TextStyle(fontSize: 10, color: ElkCleanColors.sub, letterSpacing: 0.1)),
+          Text('₹${state.total}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: ElkCleanColors.teal)),
         ]),
         right: _CleanBtn(label: 'Proceed to pay →', onTap: () => _go(_S.pay)),
       ),
@@ -959,31 +973,32 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
 
   // ─── Payment ───────────────────────────────────────────────────────────────
 
-  Widget _payScreen() {
-    const methods = [
-      (id: 'card',   icon: Icons.credit_card,           label: 'Credit / Debit card', sub: 'Visa, Mastercard, Amex'),
-      (id: 'apple',  icon: Icons.phone_iphone,           label: 'Apple Pay',           sub: 'One-tap secure checkout'),
-      (id: 'wallet', icon: Icons.account_balance_wallet, label: 'ELK Wallet',          sub: 'Balance AED 0.00'),
+  Widget _payScreen(ElkCleanState state) {
+    final pay = state.paymentMethod;
+    final methods = [
+      (id: 'card',   icon: Icons.credit_card,           label: l10n.payCard,      sub: l10n.payCardBrands),
+      (id: 'apple',  icon: Icons.phone_iphone,           label: l10n.payApplePay,  sub: l10n.payOneTapCheckout),
+      (id: 'wallet', icon: Icons.account_balance_wallet, label: l10n.payElkWallet, sub: 'Balance ₹0.00'),
     ];
     return Column(children: [
-      _CleanTopBar(title: 'Payment', onBack: _back),
+      _CleanTopBar(title: l10n.sectionPayment, onBack: _back),
       Expanded(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('CHOOSE METHOD', style: TextStyle(fontSize: 10, color: ElkCleanColors.sub, letterSpacing: 0.18, fontWeight: FontWeight.w700)),
+            Text(l10n.chooseMethod, style: const TextStyle(fontSize: 10, color: ElkCleanColors.sub, letterSpacing: 0.18, fontWeight: FontWeight.w700)),
             const SizedBox(height: 12),
             for (final m in methods) ...[
               GestureDetector(
-                onTap: () => setState(() => _pay = m.id),
+                onTap: () => _cubit.selectPaymentMethod(m.id),
                 child: Container(
-                  decoration: BoxDecoration(color: ElkCleanColors.card, borderRadius: BorderRadius.circular(16), border: Border.all(color: _pay == m.id ? ElkCleanColors.teal : ElkCleanColors.line, width: 1.5)),
+                  decoration: BoxDecoration(color: ElkCleanColors.card, borderRadius: BorderRadius.circular(16), border: Border.all(color: pay == m.id ? ElkCleanColors.teal : ElkCleanColors.line, width: 1.5)),
                   padding: const EdgeInsets.all(15),
                   child: Row(children: [
                     Container(
                       width: 42, height: 42,
-                      decoration: BoxDecoration(color: _pay == m.id ? ElkCleanColors.teal : ElkCleanColors.lineSoft, borderRadius: BorderRadius.circular(12)),
-                      child: Icon(m.icon, size: 20, color: _pay == m.id ? Colors.white : ElkCleanColors.teal),
+                      decoration: BoxDecoration(color: pay == m.id ? ElkCleanColors.teal : ElkCleanColors.lineSoft, borderRadius: BorderRadius.circular(12)),
+                      child: Icon(m.icon, size: 20, color: pay == m.id ? Colors.white : ElkCleanColors.teal),
                     ),
                     const SizedBox(width: 13),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -992,15 +1007,15 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
                     ])),
                     Container(
                       width: 20, height: 20,
-                      decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: _pay == m.id ? ElkCleanColors.teal : ElkCleanColors.line, width: 2)),
-                      child: _pay == m.id ? const Center(child: CircleAvatar(radius: 5, backgroundColor: ElkCleanColors.teal)) : null,
+                      decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: pay == m.id ? ElkCleanColors.teal : ElkCleanColors.line, width: 2)),
+                      child: pay == m.id ? const Center(child: CircleAvatar(radius: 5, backgroundColor: ElkCleanColors.teal)) : null,
                     ),
                   ]),
                 ),
               ),
               const SizedBox(height: 11),
             ],
-            if (_pay == 'card')
+            if (pay == 'card')
               Container(
                 decoration: BoxDecoration(color: ElkCleanColors.card, borderRadius: BorderRadius.circular(18), border: Border.all(color: ElkCleanColors.line, width: 1.5)),
                 padding: const EdgeInsets.all(18),
@@ -1011,8 +1026,8 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
                     padding: const EdgeInsets.all(18),
                     child: Stack(children: [
                       Positioned(right: -20, top: -20, child: Container(width: 90, height: 90, decoration: BoxDecoration(shape: BoxShape.circle, color: ElkCleanColors.citrus.withValues(alpha: 0.25)))),
-                      const Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                        Text('ELKCLEAN', style: TextStyle(fontSize: 10, color: Color(0xFF8FD4D0), letterSpacing: 0.1, fontWeight: FontWeight.w700)),
+                      Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                        Text(l10n.elkCleanCaps, style: TextStyle(fontSize: 10, color: Color(0xFF8FD4D0), letterSpacing: 0.1, fontWeight: FontWeight.w700)),
                         Text('•••• •••• •••• 4821', style: TextStyle(fontSize: 17, color: Colors.white, letterSpacing: 0.12)),
                         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                           Text('A. RESIDENT', style: TextStyle(fontSize: 11, color: Colors.white)),
@@ -1022,20 +1037,20 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
                     ]),
                   ),
                   const SizedBox(height: 16),
-                  const _FieldBox(label: 'CARD NUMBER', value: '4242 4242 4242 4821'),
+                  _FieldBox(label: l10n.cardNumber, value: '4242 4242 4242 4821'),
                   const SizedBox(height: 12),
-                  const Row(children: [
-                    Expanded(child: _FieldBox(label: 'EXPIRY', value: '06 / 28')),
-                    SizedBox(width: 12),
-                    Expanded(child: _FieldBox(label: 'CVV', value: '•••')),
+                  Row(children: [
+                    Expanded(child: _FieldBox(label: l10n.cardExpiry, value: '06 / 28')),
+                    const SizedBox(width: 12),
+                    Expanded(child: _FieldBox(label: l10n.cardCvv, value: '•••')),
                   ]),
                   const SizedBox(height: 12),
-                  const _FieldBox(label: 'NAME ON CARD', value: 'A. Resident'),
+                  _FieldBox(label: l10n.nameOnCard, value: 'A. Resident'),
                   const SizedBox(height: 14),
                   Row(children: [
                     Container(width: 20, height: 20, decoration: BoxDecoration(color: ElkCleanColors.teal, borderRadius: BorderRadius.circular(6)), child: const Icon(Icons.check, size: 13, color: Colors.white)),
                     const SizedBox(width: 9),
-                    const Text('Save card for faster checkout', style: TextStyle(fontSize: 13.5, color: ElkCleanColors.ink)),
+                    Text(l10n.saveCardFasterCheckout, style: const TextStyle(fontSize: 13.5, color: ElkCleanColors.ink)),
                   ]),
                 ]),
               ),
@@ -1048,17 +1063,32 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
           ]),
         ),
       ),
-      _CleanStickyBar(right: _CleanBtn(full: true, citrus: true, label: 'Pay AED $_total securely', onTap: () {
-        setState(() { _paidTotal = _total; _cart.clear(); });
-        _go(_S.done);
-      })),
+      _CleanStickyBar(right: _CleanBtn(
+        full: true,
+        citrus: true,
+        label: state.isBooking ? l10n.processing : l10n.paySecurely('₹${state.total}'),
+        onTap: () async {
+          if (state.isBooking) return;
+          final messenger = ScaffoldMessenger.of(context);
+          final booked = await _cubit.confirmBooking();
+          if (!mounted) return;
+          if (booked) {
+            _go(_S.done);
+          } else {
+            messenger.showSnackBar(SnackBar(
+              content: Text(_cubit.state.bookingError ?? l10n.paymentFailed),
+            ));
+          }
+        },
+      )),
     ]);
   }
 
   // ─── Done ──────────────────────────────────────────────────────────────────
 
-  Widget _doneScreen() {
-    final d = _days[_dateIdx];
+  Widget _doneScreen(ElkCleanState state) {
+    final confirmation = state.confirmation;
+    final d = state.selectedDate;
     return Container(
       color: ElkCleanColors.tealDeep,
       padding: EdgeInsets.fromLTRB(30, MediaQuery.of(context).padding.top + 30, 30, 40),
@@ -1092,12 +1122,12 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
           padding: const EdgeInsets.all(18),
           child: Stack(children: [
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('CLEAN REPORT #ELC-3391', style: TextStyle(fontSize: 10, color: ElkCleanColors.citrus, letterSpacing: 0.1, fontWeight: FontWeight.w700)),
+              Text('CLEAN REPORT #${confirmation?.code ?? ''}', style: const TextStyle(fontSize: 10, color: ElkCleanColors.citrus, letterSpacing: 0.1, fontWeight: FontWeight.w700)),
               const SizedBox(height: 12),
-              _TotalRow(label: 'When', value: '${d.dow} ${d.num} ${d.mon}, $_time'),
+              _TotalRow(label: l10n.whenLabel, value: d == null ? '—' : '${d.weekday} ${d.day} ${d.monthLabel}, ${confirmation?.timeSlot ?? state.timeSlot ?? ''}'),
               const SizedBox(height: 4),
               Divider(color: ElkCleanColors.line.withValues(alpha: 0.7)),
-              _TotalRow(label: 'Paid', value: 'AED $_paidTotal', bold: true),
+              _TotalRow(label: l10n.paidLabel, value: '₹${confirmation?.totalAmount ?? 0}', bold: true),
             ]),
             Positioned(
               top: 0, right: 0,
@@ -1106,18 +1136,18 @@ class _ElkCleanShellState extends State<ElkCleanShell> {
                 child: Container(
                   decoration: BoxDecoration(border: Border.all(color: ElkCleanColors.good, width: 2), borderRadius: BorderRadius.circular(6)),
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  child: const Text('PAID', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: ElkCleanColors.good, letterSpacing: 0.1)),
+                  child: Text(l10n.paidCaps, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: ElkCleanColors.good, letterSpacing: 0.1)),
                 ),
               ),
             ),
           ]),
         ),
         const SizedBox(height: 22),
-        _CleanBtn(full: true, citrus: true, label: 'Track my clean', onTap: widget.onBack),
+        _CleanBtn(full: true, citrus: true, label: l10n.trackMyClean, onTap: widget.onBack),
         const SizedBox(height: 14),
         TextButton(
           onPressed: widget.onBack,
-          child: const Text('Back to home', style: TextStyle(color: Color(0xFFCFE6E4), fontSize: 14, fontWeight: FontWeight.w600)),
+          child: Text(l10n.backToHome, style: TextStyle(color: Color(0xFFCFE6E4), fontSize: 14, fontWeight: FontWeight.w600)),
         ),
       ]),
     );
@@ -1292,9 +1322,9 @@ class _CartBar extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         decoration: BoxDecoration(color: ElkCleanColors.teal, borderRadius: BorderRadius.circular(16)),
         child: Row(children: [
-          Text('$count service${count > 1 ? 's' : ''} added', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
+          Text(AppLocalizations.of(context).servicesAdded(count), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
           const Spacer(),
-          Text('AED $total', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: ElkCleanColors.citrus)),
+          Text('₹$total', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: ElkCleanColors.citrus)),
           const SizedBox(width: 8),
           const Icon(Icons.chevron_right, color: Colors.white, size: 18),
         ]),
@@ -1315,11 +1345,11 @@ class _EmptyCart extends StatelessWidget {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Container(width: 70, height: 70, decoration: BoxDecoration(color: ElkCleanColors.lineSoft, borderRadius: BorderRadius.circular(20)), child: const Icon(Icons.shopping_bag_outlined, size: 32, color: ElkCleanColors.sub)),
           const SizedBox(height: 16),
-          const Text('No services yet', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: ElkCleanColors.ink)),
+          Text(AppLocalizations.of(context).noServicesYet, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: ElkCleanColors.ink)),
           const SizedBox(height: 6),
-          const Text('Browse cleaning services and build your plan.', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: ElkCleanColors.sub)),
+          Text(AppLocalizations.of(context).browseCleaningBlurb, textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, color: ElkCleanColors.sub)),
           const SizedBox(height: 18),
-          _CleanBtn(label: 'Browse services', onTap: onBrowse),
+          _CleanBtn(label: AppLocalizations.of(context).browseServices, onTap: onBrowse),
         ]),
       ),
     );
@@ -1360,7 +1390,7 @@ class _InfoRow extends StatelessWidget {
           Text(value, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: ElkCleanColors.ink)),
         ])),
         if (onEdit != null)
-          TextButton(onPressed: onEdit, child: const Text('Edit', style: TextStyle(color: ElkCleanColors.citrus, fontWeight: FontWeight.w700, fontSize: 13))),
+          TextButton(onPressed: onEdit, child: Text(AppLocalizations.of(context).commonEdit, style: const TextStyle(color: ElkCleanColors.citrus, fontWeight: FontWeight.w700, fontSize: 13))),
       ]),
     );
   }
@@ -1401,19 +1431,43 @@ class _FieldBox extends StatelessWidget {
   }
 }
 
-class _MapGridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.white.withValues(alpha: 0.12)..strokeWidth = 1;
-    const step = 26.0;
-    for (double x = 0; x < size.width; x += step) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y < size.height; y += step) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-  }
+
+/// The service address on a real map, or a tinted placeholder before one is
+/// chosen. Replaces a painted grid that drew the same invented streets for
+/// every user regardless of where they were.
+class _AddressMap extends StatelessWidget {
+  const _AddressMap({required this.address, required this.tint, required this.pin});
+
+  final CleanAddressModel? address;
+  final Color tint;
+  final Color pin;
 
   @override
-  bool shouldRepaint(covariant CustomPainter _) => false;
+  Widget build(BuildContext context) {
+    final placeholder = Stack(fit: StackFit.expand, children: [
+      Container(color: tint),
+      Center(child: Icon(Icons.location_on, size: 40, color: pin)),
+    ]);
+
+    final a = address;
+    if (a == null || a.lat == null || a.lng == null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: SizedBox(height: 150, child: placeholder),
+      );
+    }
+
+    // The real Google map, not a static image: the Maps Static API is disabled
+    // on the project, so the static-map image here always fell back to `placeholder`
+    // and the user never saw their address on a map at all.
+    return LiveMapView(
+      points: [
+        MapPoint(lat: a.lat!, lng: a.lng!, kind: MapPointKind.place, label: a.label),
+      ],
+      height: 150,
+      // Sits inside a scrolling sheet, where a pannable map fights the scroll.
+      interactive: false,
+      borderRadius: BorderRadius.circular(18),
+    );
+  }
 }

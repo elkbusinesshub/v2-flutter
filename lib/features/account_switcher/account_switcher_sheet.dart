@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../l10n/app_localizations.dart';
+
 // ─── Colors ──────────────────────────────────────────────────────────────────
 const _userGrad1 = Color(0xFF21A892);
 const _userGrad2 = Color(0xFF137A6D);
@@ -156,7 +158,7 @@ class _AccountSwitcherSheetState extends State<_AccountSwitcherSheet> {
             ),
           ]),
           const SizedBox(height: 3),
-          const Text('ELK-2025-04921  ·  Dubai, UAE', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _ink4)),
+          const Text('ELK-2025-04921  ·  Bengaluru, India', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _ink4)),
         ])),
         // Close
         GestureDetector(
@@ -170,6 +172,7 @@ class _AccountSwitcherSheetState extends State<_AccountSwitcherSheet> {
   // ─── Sliding toggle (Upstock-style) ──────────────────────────────────────
 
   Widget _buildSlidingToggle() {
+    final l10n = AppLocalizations.of(context);
     return Container(
       height: 70,
       padding: const EdgeInsets.all(4),
@@ -211,7 +214,7 @@ class _AccountSwitcherSheetState extends State<_AccountSwitcherSheet> {
               child: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                 Text('ELK', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: !_sellerMode ? Colors.white : _ink4, letterSpacing: 0.2)),
                 const SizedBox(height: 2),
-                Text('For users', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: !_sellerMode ? Colors.white.withValues(alpha: 0.85) : _ink4)),
+                Text(l10n.forUsers, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: !_sellerMode ? Colors.white.withValues(alpha: 0.85) : _ink4)),
               ])),
             ),
           ),
@@ -221,7 +224,7 @@ class _AccountSwitcherSheetState extends State<_AccountSwitcherSheet> {
               child: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                 Text('ELK', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: _sellerMode ? Colors.white : _ink4, letterSpacing: 0.2)),
                 const SizedBox(height: 2),
-                Text('For sellers', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _sellerMode ? Colors.white.withValues(alpha: 0.85) : _ink4)),
+                Text(l10n.forSellers, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _sellerMode ? Colors.white.withValues(alpha: 0.85) : _ink4)),
               ])),
             ),
           ),
@@ -233,14 +236,15 @@ class _AccountSwitcherSheetState extends State<_AccountSwitcherSheet> {
   // ─── User panel info ──────────────────────────────────────────────────────
 
   Widget _buildUserPanel() {
+    final l10n = AppLocalizations.of(context);
     return Column(key: const ValueKey('user'), crossAxisAlignment: CrossAxisAlignment.start, children: [
       // Stats row
       Row(children: [
-        _StatTile(value: '12', label: 'Bookings', icon: Icons.calendar_today_outlined, color: _teal7),
+        _StatTile(value: '12', label: l10n.navBookings, icon: Icons.calendar_today_outlined, color: _teal7),
         const SizedBox(width: 10),
-        _StatTile(value: 'AED 240', label: 'Wallet', icon: Icons.account_balance_wallet_outlined, color: const Color(0xFF1D9E6F)),
+        _StatTile(value: '₹240', label: l10n.navWallet, icon: Icons.account_balance_wallet_outlined, color: const Color(0xFF1D9E6F)),
         const SizedBox(width: 10),
-        _StatTile(value: '150 pts', label: 'Loyalty', icon: Icons.star_outline_rounded, color: const Color(0xFFE09B1A)),
+        _StatTile(value: '150 pts', label: l10n.loyalty, icon: Icons.star_outline_rounded, color: const Color(0xFFE09B1A)),
       ]),
       const SizedBox(height: 14),
       // Account highlights
@@ -251,7 +255,7 @@ class _AccountSwitcherSheetState extends State<_AccountSwitcherSheet> {
           const Icon(Icons.verified_outlined, size: 18, color: _teal6),
           const SizedBox(width: 10),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Verified Account', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: _teal7)),
+            Text(l10n.verifiedAccount, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: _teal7)),
             const SizedBox(height: 2),
             Text('aarav.menon@gmail.com  ·  4.8★ rating', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _ink5)),
           ])),
@@ -263,14 +267,15 @@ class _AccountSwitcherSheetState extends State<_AccountSwitcherSheet> {
   // ─── Seller panel info ────────────────────────────────────────────────────
 
   Widget _buildSellerPanel() {
+    final l10n = AppLocalizations.of(context);
     return Column(key: const ValueKey('seller'), crossAxisAlignment: CrossAxisAlignment.start, children: [
       // Stats row
       Row(children: [
-        _StatTile(value: 'AED 840', label: 'Today', icon: Icons.trending_up_rounded, color: _green),
+        _StatTile(value: '₹840', label: l10n.today, icon: Icons.trending_up_rounded, color: _green),
         const SizedBox(width: 10),
-        _StatTile(value: '4.9★', label: 'Rating', icon: Icons.star_rounded, color: const Color(0xFFE09B1A)),
+        _StatTile(value: '4.9★', label: l10n.profileRating, icon: Icons.star_rounded, color: const Color(0xFFE09B1A)),
         const SizedBox(width: 10),
-        _StatTile(value: 'AED 3,280', label: 'Balance', icon: Icons.account_balance_outlined, color: _sellGrad1),
+        _StatTile(value: '₹3,280', label: l10n.balance, icon: Icons.account_balance_outlined, color: _sellGrad1),
       ]),
       const SizedBox(height: 14),
       // Business highlight
@@ -301,7 +306,9 @@ class _AccountSwitcherSheetState extends State<_AccountSwitcherSheet> {
               ),
             ]),
             const SizedBox(height: 2),
-            const Text('Partner · 312 reviews · Dubai', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _ink5)),
+            // No provider stats endpoint feeds this sheet, so it states the role only
+            // rather than inventing a review count.
+            Text(l10n.partnerAccount, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _ink5)),
           ])),
         ]),
       ),
@@ -311,6 +318,7 @@ class _AccountSwitcherSheetState extends State<_AccountSwitcherSheet> {
   // ─── Action button ────────────────────────────────────────────────────────
 
   Widget _buildActionButton() {
+    final l10n = AppLocalizations.of(context);
     if (!_switched) {
       return Container(
         width: double.infinity,
@@ -318,7 +326,7 @@ class _AccountSwitcherSheetState extends State<_AccountSwitcherSheet> {
         decoration: BoxDecoration(color: const Color(0xFFF0F4F2), borderRadius: BorderRadius.circular(18)),
         child: Center(
           child: Text(
-            _sellerMode ? 'Currently in Seller Mode' : 'Currently in User Mode',
+            _sellerMode ? l10n.currentlySellerMode : l10n.currentlyUserMode,
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink4),
           ),
         ),
@@ -351,7 +359,7 @@ class _AccountSwitcherSheetState extends State<_AccountSwitcherSheet> {
         ),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           Text(
-            _sellerMode ? 'Switch to Seller Panel' : 'Switch to User Panel',
+            _sellerMode ? l10n.switchToSellerPanel : l10n.switchToUserPanel,
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.2),
           ),
           const SizedBox(width: 8),

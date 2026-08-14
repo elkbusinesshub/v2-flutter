@@ -1,7 +1,11 @@
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+
+import '../../../l10n/app_localizations.dart';
+import '../cubit/porter_cubit.dart';
 
 // ─── Design tokens (from elk_porter_booking_flow.html) ────────────────────────
 const _headerDark = Color(0xFF0B3B36);
@@ -22,26 +26,15 @@ const _muted = Color(0xFF888780);
 TextStyle _t({double sz = 13, FontWeight w = FontWeight.w500, Color c = _ink, double h = 1.35}) =>
     GoogleFonts.inter(fontSize: sz, fontWeight: w, color: c, height: h);
 
-String _aed(double n) => 'AED ${n.toStringAsFixed(2)}';
+String _aed(double n) => '₹${n.toStringAsFixed(2)}';
 
-const _slots = ['9:00 – 10:00', '11:00 – 12:00', '2:00 – 3:00 pm', '4:00 – 5:00 pm'];
-const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 enum _Sn { schedule, payment, card, processing, success }
 
 // ─── Flow ─────────────────────────────────────────────────────────────────────
 class PorterBookingFlow extends StatefulWidget {
-  const PorterBookingFlow({
-    super.key,
-    required this.pickup,
-    required this.dropoff,
-    required this.vehicleName,
-    required this.fare,
-    this.onTrack,
-  });
+  const PorterBookingFlow({super.key, this.onTrack});
 
-  final String pickup, dropoff, vehicleName;
-  final int fare;
   final VoidCallback? onTrack;
 
   @override
@@ -49,7 +42,18 @@ class PorterBookingFlow extends StatefulWidget {
 }
 
 class _PorterBookingFlowState extends State<PorterBookingFlow> {
+  AppLocalizations get l10n => AppLocalizations.of(context);
+
   _Sn _screen = _Sn.schedule;
+
+  PorterCubit get _cubit => context.read<PorterCubit>();
+
+  /// Route, vehicle and pricing all live in the shared cubit.
+  String get _pickup => _cubit.state.pickupAddress;
+  String get _dropoff => _cubit.state.dropAddress;
+  String get _vehicleName => _cubit.state.selectedVehicle?.name ?? '';
+  double get _fare => _cubit.state.fareBeforeFees;
+  List<String> get _slots => _cubit.state.page?.pickupWindows ?? const [];
 
   // schedule
   bool _later = false;
@@ -68,9 +72,9 @@ class _PorterBookingFlowState extends State<PorterBookingFlow> {
   // success
   String _trackingId = '';
 
-  double get _serviceFee => 3.5;
-  double get _vat => (widget.fare + _serviceFee) * 0.05;
-  double get _total => widget.fare + _serviceFee + _vat;
+  double get _serviceFee => _cubit.state.serviceFee;
+  double get _vat => _cubit.state.vatAmount;
+  double get _total => _cubit.state.totalAmount;
 
   @override
   void dispose() {
@@ -102,17 +106,33 @@ class _PorterBookingFlowState extends State<PorterBookingFlow> {
     }
   }
 
-  void _startProcessing() {
+  /// Sends the chosen date + window to the cubit (both are required before
+  /// the backend treats the delivery as scheduled).
+  void _syncSchedule() {
+    final date = _date;
+    final slotValid = _slot >= 0 && _slot < _slots.length;
+    if (date == null || !slotValid) return;
+    final iso = '${date.year.toString().padLeft(4, '0')}-'
+        '${date.month.toString().padLeft(2, '0')}-'
+        '${date.day.toString().padLeft(2, '0')}';
+    _cubit.setSchedule(date: iso, window: _slots[_slot]);
+  }
+
+  Future<void> _startProcessing() async {
     setState(() => _screen = _Sn.processing);
-    Future.delayed(const Duration(milliseconds: 1400), () {
-      if (!mounted) return;
-      final rng = math.Random();
-      final letters = String.fromCharCodes(
-          List.generate(2, (_) => 65 + rng.nextInt(26)));
-      setState(() {
-        _screen = _Sn.success;
-        _trackingId = 'ELK-${1000 + rng.nextInt(8999)}-$letters';
-      });
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await _cubit.bookPorter();
+    if (!mounted) return;
+    if (!ok) {
+      setState(() => _screen = _Sn.payment);
+      messenger.showSnackBar(SnackBar(
+        content: Text(_cubit.state.bookingError ?? l10n.couldNotBookDelivery),
+      ));
+      return;
+    }
+    setState(() {
+      _screen = _Sn.success;
+      _trackingId = _cubit.state.booking!.code;
     });
   }
 
@@ -161,7 +181,7 @@ class _PorterBookingFlowState extends State<PorterBookingFlow> {
           child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
         ),
         const SizedBox(width: 10),
-        Text('Book porter', style: _t(sz: 15, c: Colors.white)),
+        Text(l10n.bookPorter, style: _t(sz: 15, c: Colors.white)),
         const Spacer(),
         Text.rich(TextSpan(children: [
           TextSpan(text: 'EL', style: _t(sz: 16, c: _mintLogo)),
@@ -214,9 +234,9 @@ class _PorterBookingFlowState extends State<PorterBookingFlow> {
       Padding(
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
         child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text('Schedule', style: _t(sz: 11, c: _muted)),
-          Text('Payment', style: _t(sz: 11, c: _muted)),
-          Text('Confirm', style: _t(sz: 11, c: _muted)),
+          Text(l10n.stepSchedule, style: _t(sz: 11, c: _muted)),
+          Text(l10n.sectionPayment, style: _t(sz: 11, c: _muted)),
+          Text(l10n.commonConfirm, style: _t(sz: 11, c: _muted)),
         ]),
       ),
     ]);
@@ -230,13 +250,13 @@ class _PorterBookingFlowState extends State<PorterBookingFlow> {
         padding: const EdgeInsets.all(3),
         decoration: BoxDecoration(color: _surface1, borderRadius: BorderRadius.circular(10)),
         child: Row(children: [
-          _schedTab('Pick up now', false),
-          _schedTab('Schedule for later', true),
+          _schedTab(l10n.pickUpNow, false),
+          _schedTab(l10n.scheduleForLater, true),
         ]),
       ),
       if (_later) ...[
         const SizedBox(height: 16),
-        Text('Pickup date', style: _t(sz: 12, c: _muted)),
+        Text(l10n.pickupDate, style: _t(sz: 12, c: _muted)),
         const SizedBox(height: 6),
         GestureDetector(
           onTap: () async {
@@ -246,7 +266,10 @@ class _PorterBookingFlowState extends State<PorterBookingFlow> {
               firstDate: DateTime.now(),
               lastDate: DateTime.now().add(const Duration(days: 30)),
             );
-            if (d != null) setState(() => _date = d);
+            if (d != null) {
+              setState(() => _date = d);
+              _syncSchedule();
+            }
           },
           child: Container(
             width: double.infinity,
@@ -256,13 +279,15 @@ class _PorterBookingFlowState extends State<PorterBookingFlow> {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              _date == null ? 'Select date' : '${_date!.day} ${_months[_date!.month - 1]} ${_date!.year}',
+              _date == null
+                  ? l10n.selectDateAction
+                  : DateFormat('d MMM yyyy', l10n.localeName).format(_date!),
               style: _t(sz: 13, c: _date == null ? _muted : _ink),
             ),
           ),
         ),
         const SizedBox(height: 14),
-        Text('Pickup window', style: _t(sz: 12, c: _muted)),
+        Text(l10n.pickupWindow, style: _t(sz: 12, c: _muted)),
         const SizedBox(height: 8),
         GridView.count(
           crossAxisCount: 2,
@@ -274,7 +299,10 @@ class _PorterBookingFlowState extends State<PorterBookingFlow> {
           children: List.generate(_slots.length, (i) {
             final on = _slot == i;
             return GestureDetector(
-              onTap: () => setState(() => _slot = i),
+              onTap: () {
+                setState(() => _slot = i);
+                _syncSchedule();
+              },
               child: Container(
                 decoration: BoxDecoration(
                   color: on ? _green : Colors.transparent,
@@ -303,9 +331,9 @@ class _PorterBookingFlowState extends State<PorterBookingFlow> {
             const SizedBox(width: 10),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Pickup location', style: _t(sz: 11, c: _muted)),
+                Text(l10n.pickupLocation, style: _t(sz: 11, c: _muted)),
                 const SizedBox(height: 2),
-                Text(widget.pickup, style: _t(sz: 13)),
+                Text(_pickup, style: _t(sz: 13)),
               ]),
             ),
           ]),
@@ -318,9 +346,9 @@ class _PorterBookingFlowState extends State<PorterBookingFlow> {
             const SizedBox(width: 10),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Drop location', style: _t(sz: 11, c: _muted)),
+                Text(l10n.dropLocation, style: _t(sz: 11, c: _muted)),
                 const SizedBox(height: 2),
-                Text(widget.dropoff, style: _t(sz: 13)),
+                Text(_dropoff, style: _t(sz: 13)),
               ]),
             ),
           ]),
@@ -328,12 +356,12 @@ class _PorterBookingFlowState extends State<PorterBookingFlow> {
       ),
       const SizedBox(height: 14),
       Row(children: [
-        _statTile('Distance', '4.2 km'),
+        _statTile(l10n.distance, '4.2 km'),
         const SizedBox(width: 8),
-        _statTile('Est. time', '18 mins'),
+        _statTile(l10n.estTime, '18 mins'),
       ]),
       const SizedBox(height: 16),
-      _cta('Continue to payment', () => setState(() => _screen = _Sn.payment)),
+      _cta(l10n.continueToPayment, () => setState(() => _screen = _Sn.payment)),
     ]);
   }
 
@@ -341,7 +369,14 @@ class _PorterBookingFlowState extends State<PorterBookingFlow> {
     final on = _later == later;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _later = later),
+        onTap: () {
+          setState(() => _later = later);
+          if (later) {
+            _syncSchedule();
+          } else {
+            _cubit.clearSchedule();
+          }
+        },
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
@@ -373,36 +408,36 @@ class _PorterBookingFlowState extends State<PorterBookingFlow> {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(
         padding: const EdgeInsets.only(top: 8, bottom: 10),
-        child: Text('Select payment method', style: _t(sz: 13, c: _txt2)),
+        child: Text(l10n.selectPaymentMethod, style: _t(sz: 13, c: _txt2)),
       ),
-      _payOpt('wallet', Icons.account_balance_wallet_outlined, 'ELK wallet', sub: 'Balance AED 120.00'),
-      _payOpt('card', Icons.credit_card, 'Credit or debit card', sub: 'Visa, Mastercard'),
-      _payOpt('apple', Icons.apple, 'Apple Pay'),
-      _payOpt('cash', Icons.payments_outlined, 'Cash on delivery'),
+      _payOpt('wallet', Icons.account_balance_wallet_outlined, l10n.payElkWallet, sub: 'Balance ₹120.00'),
+      _payOpt('card', Icons.credit_card, l10n.payCard, sub: l10n.payCardBrandsShort),
+      _payOpt('apple', Icons.apple, l10n.payApplePay),
+      _payOpt('cash', Icons.payments_outlined, l10n.payCashOnDelivery),
       const SizedBox(height: 8),
       // breakdown
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(color: _surface1, borderRadius: BorderRadius.circular(10)),
         child: Column(children: [
-          _feeRow('Delivery fare', _aed(widget.fare.toDouble())),
+          _feeRow(l10n.deliveryFare, _aed(_fare)),
           const SizedBox(height: 6),
-          _feeRow('Service fee', _aed(_serviceFee)),
+          _feeRow(l10n.serviceFee, _aed(_serviceFee)),
           const SizedBox(height: 6),
-          _feeRow('VAT (5%)', _aed(_vat)),
+          _feeRow(l10n.gstFivePercent, _aed(_vat)),
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 8),
             child: Divider(color: _border, height: 1),
           ),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text('Total', style: _t(sz: 14)),
+            Text(l10n.total, style: _t(sz: 14)),
             Text(_aed(_total), style: _t(sz: 14)),
           ]),
         ]),
       ),
       const SizedBox(height: 16),
       _cta(
-        _pay == 'card' ? 'Continue to card details' : 'Pay ${_aed(_total)}',
+        _pay == 'card' ? l10n.continueToCardDetails : l10n.payAmount(_aed(_total)),
         () => _pay == 'card' ? setState(() => _screen = _Sn.card) : _startProcessing(),
       ),
     ]);
@@ -463,37 +498,37 @@ class _PorterBookingFlowState extends State<PorterBookingFlow> {
           Text('256-bit encrypted secure payment', style: _t(sz: 11, c: _muted)),
         ]),
       ),
-      _field('Card number', _numCtrl, '4242 4242 4242 4242'),
+      _field(l10n.cardNumber, _numCtrl, '4242 4242 4242 4242'),
       const SizedBox(height: 12),
       Row(children: [
-        Expanded(child: _field('Expiry', _expCtrl, 'MM / YY')),
+        Expanded(child: _field(l10n.cardExpiry, _expCtrl, 'MM / YY')),
         const SizedBox(width: 10),
-        Expanded(child: _field('CVV', _cvvCtrl, '•••')),
+        Expanded(child: _field(l10n.cardCvv, _cvvCtrl, '•••')),
       ]),
       const SizedBox(height: 12),
-      _field('Name on card', _nameCtrl, 'As shown on card'),
+      _field(l10n.nameOnCard, _nameCtrl, l10n.cardAsShown),
       const SizedBox(height: 16),
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(color: _surface1, borderRadius: BorderRadius.circular(10)),
         child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text('Amount', style: _t(sz: 14)),
+          Text(l10n.amount, style: _t(sz: 14)),
           Text(_aed(_total), style: _t(sz: 14)),
         ]),
       ),
       const SizedBox(height: 16),
-      _cta('Confirm and pay', () {
+      _cta(l10n.confirmAndPay, () {
         final digits = _numCtrl.text.replaceAll(RegExp(r'\D'), '');
         if (digits.length < 16 || _expCtrl.text.isEmpty || _cvvCtrl.text.length < 3 || _nameCtrl.text.trim().isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Please complete all card details')),
+            SnackBar(content: Text(l10n.completeCardDetails)),
           );
           return;
         }
         _startProcessing();
       }),
       const SizedBox(height: 10),
-      Center(child: Text('Payments secured by ELK gateway', style: _t(sz: 11, c: _muted))),
+      Center(child: Text(l10n.paymentsSecuredByElk, style: _t(sz: 11, c: _muted))),
     ]);
   }
 
@@ -538,9 +573,9 @@ class _PorterBookingFlowState extends State<PorterBookingFlow> {
           ),
         ),
         const SizedBox(height: 18),
-        Text('Processing payment', style: _t(sz: 14)),
+        Text(l10n.processingPayment, style: _t(sz: 14)),
         const SizedBox(height: 4),
-        Text('Confirming with your bank, do not close this screen',
+        Text(l10n.confirmingWithBank,
             textAlign: TextAlign.center, style: _t(sz: 12, c: _muted)),
       ]),
     );
@@ -557,22 +592,22 @@ class _PorterBookingFlowState extends State<PorterBookingFlow> {
           child: const Icon(Icons.check, size: 26, color: _green),
         ),
         const SizedBox(height: 14),
-        Text('Booking confirmed', style: _t(sz: 16)),
+        Text(l10n.bookingConfirmed, style: _t(sz: 16)),
         const SizedBox(height: 4),
-        Text('Your porter has been notified', style: _t(sz: 12, c: _muted)),
+        Text(l10n.porterNotified, style: _t(sz: 12, c: _muted)),
         const SizedBox(height: 18),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(color: _surface1, borderRadius: BorderRadius.circular(12)),
           child: Column(children: [
-            _detailRow('Tracking ID', _trackingId, mono: true),
+            _detailRow(l10n.trackingId, _trackingId, mono: true),
             const SizedBox(height: 8),
-            _detailRow('Rider', 'Farhan A. · ${widget.vehicleName}'),
+            _detailRow(l10n.vehicle, _vehicleName),
             const SizedBox(height: 8),
-            _detailRow('Arrival', '12 mins'),
+            _detailRow(l10n.arrival, '12 mins'),
             const SizedBox(height: 8),
-            _detailRow('Amount paid', _aed(_total), bold: true),
+            _detailRow(l10n.amountPaid, _aed(_total), bold: true),
           ]),
         ),
         const SizedBox(height: 14),
@@ -583,7 +618,7 @@ class _PorterBookingFlowState extends State<PorterBookingFlow> {
         const SizedBox(height: 8),
         GestureDetector(
           onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Receipt sent to your email')),
+            SnackBar(content: Text(l10n.receiptSentToEmail)),
           ),
           child: Container(
             width: double.infinity,
@@ -592,7 +627,7 @@ class _PorterBookingFlowState extends State<PorterBookingFlow> {
               border: Border.all(color: _borderStrong),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Center(child: Text('View receipt →', style: _t(sz: 14, c: _txt2))),
+            child: Center(child: Text(l10n.viewReceipt, style: _t(sz: 14, c: _txt2))),
           ),
         ),
       ]),

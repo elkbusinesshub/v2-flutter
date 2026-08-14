@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/widgets/buttons.dart';
 import '../../../core/widgets/elk_logo.dart';
+import '../../../l10n/app_localizations.dart';
 import '../bloc/auth_bloc.dart';
 
 class AuthScreen extends StatelessWidget {
@@ -58,6 +59,7 @@ class _PhoneEntryViewState extends State<_PhoneEntryView> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final state = context.watch<AuthBloc>().state;
 
     return Scaffold(
@@ -70,21 +72,21 @@ class _PhoneEntryViewState extends State<_PhoneEntryView> {
             children: [
               const ElkLogo(fontSize: 30),
               const SizedBox(height: 32),
-              const Text(
-                'Welcome Back',
-                style: TextStyle(
+              Text(
+                l10n.authWelcomeBack,
+                style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w800,
                   color: AppColors.dark,
                 ),
               ),
               const SizedBox(height: 6),
-              const Text(
-                'Sign in with your mobile number to continue',
-                style: TextStyle(fontSize: 13, color: AppColors.gray),
+              Text(
+                l10n.authSignInPrompt,
+                style: const TextStyle(fontSize: 13, color: AppColors.gray),
               ),
               const SizedBox(height: 28),
-              const Text('Mobile Number', style: TextStyle(
+              Text(l10n.authMobileNumber, style: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: AppColors.dark,
@@ -141,7 +143,7 @@ class _PhoneEntryViewState extends State<_PhoneEntryView> {
               ],
               const SizedBox(height: 24),
               PrimaryButton(
-                label: 'Send OTP',
+                label: l10n.authSendOtp,
                 isLoading: state.isLoading,
                 onPressed: state.isPhoneValid
                     ? () => context.read<AuthBloc>().add(const OtpRequested())
@@ -154,7 +156,7 @@ class _PhoneEntryViewState extends State<_PhoneEntryView> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: Text(
-                      'OR',
+                      l10n.commonOr,
                       style: TextStyle(
                         fontSize: 12,
                         color: AppColors.gray.withValues(alpha: 0.8),
@@ -164,28 +166,14 @@ class _PhoneEntryViewState extends State<_PhoneEntryView> {
                   const Expanded(child: Divider(color: AppColors.border)),
                 ],
               ),
-              const SizedBox(height: 24),
-              OutlineDarkButton(
-                label: 'Continue with Google',
-                icon: const Text(
-                  'G',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.googleRed,
-                  ),
-                ),
-                onPressed: () =>
-                    context.read<AuthBloc>().add(const GoogleSignInRequested()),
-              ),
               const SizedBox(height: 16),
               Center(
                 child: TextButton(
                   onPressed: () =>
                       context.read<AuthBloc>().add(const GuestSignInRequested()),
-                  child: const Text(
-                    'Continue as Guest',
-                    style: TextStyle(
+                  child: Text(
+                    l10n.authContinueAsGuest,
+                    style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: AppColors.teal,
@@ -209,7 +197,7 @@ class _OtpView extends StatefulWidget {
 }
 
 class _OtpViewState extends State<_OtpView> {
-  static const _digitCount = 4;
+  static const _digitCount = AuthState.otpLength;
 
   late final List<TextEditingController> _controllers;
   late final List<FocusNode> _focusNodes;
@@ -268,6 +256,7 @@ class _OtpViewState extends State<_OtpView> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final state = context.watch<AuthBloc>().state;
 
     return Scaffold(
@@ -288,9 +277,9 @@ class _OtpViewState extends State<_OtpView> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Verify Your Number',
-                style: TextStyle(
+              Text(
+                l10n.authVerifyTitle,
+                style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w800,
                   color: AppColors.dark,
@@ -299,7 +288,7 @@ class _OtpViewState extends State<_OtpView> {
               const SizedBox(height: 6),
               Text.rich(
                 TextSpan(
-                  text: "We've sent a 4-digit code to ",
+                  text: l10n.authOtpSentTo,
                   style: const TextStyle(fontSize: 13, color: AppColors.gray),
                   children: [
                     TextSpan(
@@ -314,40 +303,49 @@ class _OtpViewState extends State<_OtpView> {
                 ),
               ),
               const SizedBox(height: 32),
+              // Six fixed-width boxes overflow a 360dp screen, so each cell
+              // shares the row evenly instead.
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: List.generate(_digitCount, (index) {
-                  return SizedBox(
-                    width: 64,
-                    height: 64,
-                    child: TextField(
-                      controller: _controllers[index],
-                      focusNode: _focusNodes[index],
-                      textAlign: TextAlign.center,
-                      keyboardType: TextInputType.number,
-                      maxLength: 1,
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.dark,
+                  return Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        right: index == _digitCount - 1 ? 0 : 8,
                       ),
-                      decoration: InputDecoration(
-                        counterText: '',
-                        filled: true,
-                        fillColor: const Color(0xFFFAFBFC),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(AppRadius.sm),
-                          borderSide: const BorderSide(color: AppColors.border),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(AppRadius.sm),
-                          borderSide: const BorderSide(
-                            color: AppColors.teal,
-                            width: 1.5,
+                      child: SizedBox(
+                        height: 60,
+                        child: TextField(
+                          controller: _controllers[index],
+                          focusNode: _focusNodes[index],
+                          textAlign: TextAlign.center,
+                          keyboardType: TextInputType.number,
+                          maxLength: 1,
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.dark,
                           ),
+                          decoration: InputDecoration(
+                            counterText: '',
+                            filled: true,
+                            fillColor: const Color(0xFFFAFBFC),
+                            contentPadding: EdgeInsets.zero,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(AppRadius.sm),
+                              borderSide:
+                                  const BorderSide(color: AppColors.border),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(AppRadius.sm),
+                              borderSide: const BorderSide(
+                                color: AppColors.teal,
+                                width: 1.5,
+                              ),
+                            ),
+                          ),
+                          onChanged: (value) => _onDigitChanged(index, value),
                         ),
                       ),
-                      onChanged: (value) => _onDigitChanged(index, value),
                     ),
                   );
                 }),
@@ -361,7 +359,7 @@ class _OtpViewState extends State<_OtpView> {
               ],
               const SizedBox(height: 28),
               PrimaryButton(
-                label: 'Verify & Continue',
+                label: l10n.authVerifyContinue,
                 isLoading: state.isLoading,
                 onPressed: state.isOtpComplete
                     ? () => context.read<AuthBloc>().add(const OtpSubmitted())
@@ -371,7 +369,8 @@ class _OtpViewState extends State<_OtpView> {
               Center(
                 child: _secondsRemaining > 0
                     ? Text(
-                        'Resend code in 00:${_secondsRemaining.toString().padLeft(2, '0')}',
+                        l10n.authResendIn(
+                            _secondsRemaining.toString().padLeft(2, '0')),
                         style: const TextStyle(fontSize: 13, color: AppColors.gray),
                       )
                     : TextButton(
@@ -385,9 +384,9 @@ class _OtpViewState extends State<_OtpView> {
                           });
                           _startTimer();
                         },
-                        child: const Text(
-                          'Resend Code',
-                          style: TextStyle(
+                        child: Text(
+                          l10n.authResendCode,
+                          style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                             color: AppColors.teal,

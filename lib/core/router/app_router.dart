@@ -32,7 +32,6 @@ import '../../data/repositories/porter_repository.dart';
 import '../../data/repositories/profile_repository.dart';
 import '../../data/repositories/provider_repository.dart';
 import '../../data/repositories/review_repository.dart';
-import '../../data/repositories/services_repository.dart';
 import '../../data/repositories/tracking_repository.dart';
 import '../../data/repositories/wallet_repository.dart';
 import '../../features/auth/bloc/auth_bloc.dart';
@@ -384,7 +383,7 @@ GoRouter buildAppRouter() {
           final serviceId = state.pathParameters['serviceId']!;
           return BlocProvider(
             create: (context) => ServiceDetailCubit(
-              context.read<ServicesRepository>(),
+              context.read<MarketplaceRepository>(),
               context.read<AppPreferences>(),
             ),
             child: ServiceDetailScreen(
@@ -399,7 +398,7 @@ GoRouter buildAppRouter() {
       ShellRoute(
         builder: (context, state, child) => BlocProvider(
           create: (context) => BookingBloc(
-            context.read<BookingRepository>(),
+            context.read<MarketplaceRepository>(),
             context.read<PaymentRepository>(),
             context.read<AppPreferences>(),
           ),

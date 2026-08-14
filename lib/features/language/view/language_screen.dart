@@ -5,6 +5,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/widgets/buttons.dart';
 import '../../../core/widgets/state_views.dart';
+import '../../../l10n/app_localizations.dart';
 import '../cubit/language_cubit.dart';
 
 class LanguageScreen extends StatefulWidget {
@@ -25,6 +26,8 @@ class _LanguageScreenState extends State<LanguageScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -36,7 +39,7 @@ class _LanguageScreenState extends State<LanguageScreen> {
             }
             if (state.status == LanguageStatus.error) {
               return ErrorRetryView(
-                message: state.errorMessage ?? 'Something went wrong',
+                message: state.errorMessage ?? l10n.errorGeneric,
                 onRetry: () => context.read<LanguageCubit>().loadLanguages(),
               );
             }
@@ -47,19 +50,20 @@ class _LanguageScreenState extends State<LanguageScreen> {
                   padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
+                    children: [
                       Text(
-                        'Choose Your Language',
-                        style: TextStyle(
+                        l10n.languageTitle,
+                        style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
                           color: AppColors.dark,
                         ),
                       ),
-                      SizedBox(height: 6),
+                      const SizedBox(height: 6),
                       Text(
-                        'You can change this anytime from settings.',
-                        style: TextStyle(fontSize: 13, color: AppColors.gray),
+                        l10n.languageSubtitle,
+                        style: const TextStyle(
+                            fontSize: 13, color: AppColors.gray),
                       ),
                     ],
                   ),
@@ -87,11 +91,23 @@ class _LanguageScreenState extends State<LanguageScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 28),
                   child: PrimaryButton(
-                    label: 'Continue',
-                    onPressed: () async {
-                      await context.read<LanguageCubit>().confirmSelection();
-                      widget.onContinue();
-                    },
+                    label: l10n.commonContinue,
+                    isLoading: state.isSaving,
+                    onPressed: state.isSaving
+                        ? null
+                        : () async {
+                            final cubit = context.read<LanguageCubit>();
+                            final messenger = ScaffoldMessenger.of(context);
+                            final saved = await cubit.confirmSelection();
+                            if (saved) {
+                              widget.onContinue();
+                            } else {
+                              messenger.showSnackBar(SnackBar(
+                                content: Text(cubit.state.errorMessage ??
+                                    l10n.languageSaveFailed),
+                              ));
+                            }
+                          },
                   ),
                 ),
               ],

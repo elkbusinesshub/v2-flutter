@@ -1,5 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+
+import '../../data/models/location_models.dart';
+import '../../data/models/place_models.dart';
+import '../../data/repositories/locations_repository.dart';
+import '../../data/repositories/places_repository.dart';
+import '../errors/api_exception.dart';
+import '../utils/app_preferences.dart';
+import '../../l10n/app_localizations.dart';
+import '../location/current_location.dart';
 
 // ─── Theme tokens (matches app design language) ──────────────────────────────
 const _teal7 = Color(0xFF137A6D);
@@ -10,55 +22,40 @@ const _ink5 = Color(0xFF5E6E66);
 const _ink4 = Color(0xFF8C9890);
 const _line = Color(0xFFECEFEA);
 
+/// How long the user must pause before a keystroke costs a Google call.
+const _searchDebounce = Duration(milliseconds: 350);
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 
-class SavedAddress {
-  const SavedAddress({
-    required this.id,
+/// Result returned when the user picks a location.
+///
+/// [lat]/[lng] are present whenever the location came from the address book or
+/// from geocoding; they are null only for a label the user typed by hand.
+class PickedLocation {
+  const PickedLocation({
     required this.label,
     required this.address,
-    required this.icon,
+    this.id,
+    this.lat,
+    this.lng,
+    this.placeId,
   });
-  final String id;
-  final String label;
-  final String address;
-  final IconData icon;
-}
 
-/// Result returned when the user picks a location.
-class PickedLocation {
-  const PickedLocation({required this.label, required this.address, this.id});
   final String label;
   final String address;
 
-  /// Saved address id, or 'map' / 'current' for the action rows.
+  /// Saved address id, or 'search' / 'current' for the action rows.
   final String? id;
 
-  /// Short display name, e.g. for headers: "Apartment · Al Reem Island".
+  final double? lat;
+  final double? lng;
+
+  /// Google place id, when the location came from a search suggestion.
+  final String? placeId;
+
+  /// Short display name, e.g. for headers: "Apartment · Koramangala".
   String get short => label;
 }
-
-/// App-wide dummy saved addresses (until a real address book exists).
-const elkSavedAddresses = <SavedAddress>[
-  SavedAddress(
-    id: 'apartment',
-    label: 'Apartment',
-    address: 'Tower 3, Apt 1204, Marina Bay, Al Reem Island',
-    icon: Icons.home_rounded,
-  ),
-  SavedAddress(
-    id: 'office',
-    label: 'Office',
-    address: 'Addax Tower, 12th floor, City of Lights, Al Reem',
-    icon: Icons.work_outline_rounded,
-  ),
-  SavedAddress(
-    id: 'villa',
-    label: 'Family Villa',
-    address: 'Villa 22, Street 9, Khalifa City A, Abu Dhabi',
-    icon: Icons.villa_outlined,
-  ),
-];
 
 /// Shows the themed location picker bottom sheet.
 ///
@@ -66,7 +63,7 @@ const elkSavedAddresses = <SavedAddress>[
 Future<PickedLocation?> showLocationPicker(
   BuildContext context, {
   String? selectedId,
-  String title = 'Choose your location',
+  String? title,
 }) {
   return showModalBottomSheet<PickedLocation>(
     context: context,
@@ -76,13 +73,98 @@ Future<PickedLocation?> showLocationPicker(
   );
 }
 
+/// Picks a tile icon from the label, since the backend stores no icon.
+IconData _iconForLabel(String label) {
+  final l = label.toLowerCase();
+  if (l.contains('home') || l.contains('apartment') || l.contains('flat')) {
+    return Icons.home_rounded;
+  }
+  if (l.contains('office') || l.contains('work')) return Icons.work_outline_rounded;
+  if (l.contains('villa') || l.contains('house')) return Icons.villa_outlined;
+  return Icons.place_outlined;
+}
+
 // ─── Sheet ────────────────────────────────────────────────────────────────────
 
-class _LocationPickerSheet extends StatelessWidget {
+class _LocationPickerSheet extends StatefulWidget {
   const _LocationPickerSheet({required this.selectedId, required this.title});
 
   final String? selectedId;
-  final String title;
+
+  /// Screen-specific heading; falls back to the generic one at render time,
+  /// where the translations exist.
+  final String? title;
+
+  @override
+  State<_LocationPickerSheet> createState() => _LocationPickerSheetState();
+}
+
+class _LocationPickerSheetState extends State<_LocationPickerSheet> {
+  AppLocalizations get l10n => AppLocalizations.of(context);
+
+  late final bool _isGuest;
+  List<AddressModel>? _addresses;
+  String? _loadError;
+  bool _locating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _isGuest = context.read<AppPreferences>().isGuest;
+    if (!_isGuest) _loadAddresses();
+  }
+
+  Future<void> _loadAddresses() async {
+    setState(() => _loadError = null);
+    try {
+      final addresses = await context.read<LocationsRepository>().getAddresses();
+      if (mounted) setState(() => _addresses = addresses);
+    } catch (e) {
+      if (mounted) setState(() => _loadError = friendlyErrorMessage(e));
+    }
+  }
+
+  /// Reads device GPS, then names the coordinate via the backend.
+  ///
+  /// Permission is requested here rather than at startup so the prompt has
+  /// obvious context — the user has just tapped "use current location".
+  Future<void> _useCurrentLocation() async {
+    setState(() => _locating = true);
+    try {
+      final place =
+          await resolveCurrentLocation(context.read<PlacesRepository>());
+      if (!mounted) return;
+      Navigator.pop(
+        context,
+        PickedLocation(
+          id: 'current',
+          label: l10n.currentLocation,
+          address: place.formattedAddress,
+          lat: place.lat,
+          lng: place.lng,
+          placeId: place.placeId,
+        ),
+      );
+    } on LocationUnavailable catch (e) {
+      _fail(e.message);
+    } catch (e) {
+      _fail(friendlyErrorMessage(e));
+    }
+  }
+
+  void _fail(String message) {
+    if (!mounted) return;
+    setState(() => _locating = false);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _openSearch() async {
+    final nav = Navigator.of(context);
+    final result = await nav.push<PickedLocation>(
+      MaterialPageRoute(builder: (_) => const _PlaceSearchPage()),
+    );
+    if (result != null) nav.pop(result);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -126,7 +208,7 @@ class _LocationPickerSheet extends StatelessWidget {
           const SizedBox(height: 16),
           // Title
           Text(
-            title,
+            widget.title ?? l10n.chooseYourLocation,
             style: GoogleFonts.nunito(
               fontSize: 24,
               fontWeight: FontWeight.w900,
@@ -135,65 +217,115 @@ class _LocationPickerSheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
-          // Saved addresses
-          Text(
-            'Saved addresses',
-            style: GoogleFonts.nunito(
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-              color: _ink9,
-              letterSpacing: -0.2,
-            ),
-          ),
-          const SizedBox(height: 4),
-          for (int i = 0; i < elkSavedAddresses.length; i++) ...[
-            _SavedAddressTile(
-              addr: elkSavedAddresses[i],
-              selected: elkSavedAddresses[i].id == selectedId,
-              onTap: () => Navigator.pop(
-                context,
-                PickedLocation(
-                  id: elkSavedAddresses[i].id,
-                  label: elkSavedAddresses[i].label,
-                  address: elkSavedAddresses[i].address,
-                ),
-              ),
-            ),
-            if (i < elkSavedAddresses.length - 1)
-              const Divider(color: _line, height: 1, indent: 52),
-          ],
+          ..._savedSection(),
           const SizedBox(height: 14),
-          // Choose on map
           _ActionCard(
-            icon: Icons.pin_drop_outlined,
-            title: 'Choose a different location',
-            subtitle: 'Pick a location on the map',
-            onTap: () async {
-              final nav = Navigator.of(context);
-              final res = await nav.push<PickedLocation>(
-                MaterialPageRoute(builder: (_) => const _MapPickPage()),
-              );
-              if (res != null) nav.pop(res);
-            },
+            icon: Icons.search_rounded,
+            title: l10n.searchForAddress,
+            subtitle: l10n.findStreetArea,
+            onTap: _openSearch,
           ),
           const SizedBox(height: 10),
-          // Current location
           _ActionCard(
             icon: Icons.near_me_outlined,
-            title: 'Use current location',
-            subtitle: 'Uses your phone GPS',
-            onTap: () => Navigator.pop(
-              context,
-              const PickedLocation(
-                id: 'current',
-                label: 'Current location',
-                address: 'Al Reem Island, Abu Dhabi',
-              ),
-            ),
+            title: l10n.useCurrentLocationTitle,
+            subtitle: l10n.usesPhoneGps,
+            busy: _locating,
+            onTap: _locating ? null : _useCurrentLocation,
           ),
         ],
       ),
     );
+  }
+
+  /// Saved addresses, or the state that stands in for them.
+  ///
+  /// Guests are told to sign in rather than shown an error: the address book
+  /// is per-user, so there is nothing to load rather than something broken.
+  List<Widget> _savedSection() {
+    if (_isGuest) {
+      return [
+        _Notice(
+          icon: Icons.lock_outline_rounded,
+          text: l10n.savedAddressesSignIn,
+        ),
+      ];
+    }
+    if (_loadError != null) {
+      return [
+        _Notice(
+          icon: Icons.wifi_off_rounded,
+          text: _loadError!,
+          actionLabel: l10n.commonRetry,
+          onAction: _loadAddresses,
+        ),
+      ];
+    }
+    if (_addresses == null) {
+      return const [
+        Padding(
+          padding: EdgeInsets.symmetric(vertical: 20),
+          child: Center(
+            child: SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2.4, color: _teal7),
+            ),
+          ),
+        ),
+      ];
+    }
+    if (_addresses!.isEmpty) {
+      return [
+        _Notice(
+          icon: Icons.bookmark_border_rounded,
+          text: l10n.noSavedAddressesSearch,
+        ),
+      ];
+    }
+
+    return [
+      Text(
+        l10n.savedAddressesTitle,
+        style: GoogleFonts.nunito(
+          fontSize: 16,
+          fontWeight: FontWeight.w900,
+          color: _ink9,
+          letterSpacing: -0.2,
+        ),
+      ),
+      const SizedBox(height: 4),
+      // Constrained so a long address book scrolls instead of overflowing the sheet.
+      ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.34,
+        ),
+        child: ListView.separated(
+          shrinkWrap: true,
+          padding: EdgeInsets.zero,
+          itemCount: _addresses!.length,
+          separatorBuilder: (_, _) =>
+              const Divider(color: _line, height: 1, indent: 52),
+          itemBuilder: (_, i) {
+            final address = _addresses![i];
+            return _SavedAddressTile(
+              address: address,
+              selected: address.id == widget.selectedId,
+              onTap: () => Navigator.pop(
+                context,
+                PickedLocation(
+                  id: address.id,
+                  label: address.label,
+                  address: address.formattedAddress,
+                  lat: address.lat,
+                  lng: address.lng,
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    ];
   }
 }
 
@@ -201,12 +333,12 @@ class _LocationPickerSheet extends StatelessWidget {
 
 class _SavedAddressTile extends StatelessWidget {
   const _SavedAddressTile({
-    required this.addr,
+    required this.address,
     required this.selected,
     required this.onTap,
   });
 
-  final SavedAddress addr;
+  final AddressModel address;
   final bool selected;
   final VoidCallback onTap;
 
@@ -226,7 +358,7 @@ class _SavedAddressTile extends StatelessWidget {
                 color: _teal05,
                 borderRadius: BorderRadius.circular(13),
               ),
-              child: Icon(addr.icon, size: 19, color: _teal7),
+              child: Icon(_iconForLabel(address.label), size: 19, color: _teal7),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -234,7 +366,7 @@ class _SavedAddressTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    addr.label,
+                    address.label,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 14.5,
                       fontWeight: FontWeight.w800,
@@ -243,7 +375,7 @@ class _SavedAddressTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    addr.address,
+                    address.formattedAddress,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.plusJakartaSans(
@@ -283,208 +415,267 @@ class _SavedAddressTile extends StatelessWidget {
   }
 }
 
-// ─── Map pick page (fake map, tap to move pin) ────────────────────────────────
+// ─── Address search page ──────────────────────────────────────────────────────
 
-class _MapPickPage extends StatefulWidget {
-  const _MapPickPage();
+/// Live address autocomplete over `GET /places/search`.
+///
+/// Two round trips per pick: the list is predictions only, so the tapped
+/// suggestion is resolved through `GET /places/:placeId` to get coordinates.
+class _PlaceSearchPage extends StatefulWidget {
+  const _PlaceSearchPage();
 
   @override
-  State<_MapPickPage> createState() => _MapPickPageState();
+  State<_PlaceSearchPage> createState() => _PlaceSearchPageState();
 }
 
-class _MapPickPageState extends State<_MapPickPage> {
-  Offset? _pin; // null until first tap; defaults to centre
+class _PlaceSearchPageState extends State<_PlaceSearchPage> {
+  AppLocalizations get l10n => AppLocalizations.of(context);
 
-  String _areaFor(Offset p, Size size) {
-    final left = p.dx < size.width / 2;
-    final topHalf = p.dy < size.height / 2;
-    if (left && topHalf) return 'Marina Bay, Al Reem Island';
-    if (!left && topHalf) return 'City of Lights, Al Reem';
-    if (left) return 'Shams Abu Dhabi, Al Reem';
-    return 'Tamouh District, Al Reem Island';
+  final _controller = TextEditingController();
+  Timer? _debounce;
+
+  /// Guards against a slow earlier request overwriting a newer one's results.
+  int _requestId = 0;
+
+  List<PlaceSuggestion> _suggestions = const [];
+  bool _searching = false;
+  bool _resolving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onChanged(String value) {
+    _debounce?.cancel();
+    final query = value.trim();
+    // Matches the backend's minimum — a single letter matches half the country
+    // and bills the same as a useful query.
+    if (query.length < 2) {
+      setState(() {
+        _suggestions = const [];
+        _searching = false;
+        _error = null;
+      });
+      return;
+    }
+    setState(() => _searching = true);
+    _debounce = Timer(_searchDebounce, () => _search(query));
+  }
+
+  Future<void> _search(String query) async {
+    final id = ++_requestId;
+    try {
+      final results = await context.read<PlacesRepository>().search(query);
+      if (!mounted || id != _requestId) return;
+      setState(() {
+        _suggestions = results;
+        _searching = false;
+        _error = null;
+      });
+    } catch (e) {
+      if (!mounted || id != _requestId) return;
+      setState(() {
+        _searching = false;
+        _error = friendlyErrorMessage(e);
+      });
+    }
+  }
+
+  Future<void> _pick(PlaceSuggestion suggestion) async {
+    setState(() => _resolving = true);
+    try {
+      final place = await context.read<PlacesRepository>().details(suggestion.placeId);
+      if (!mounted) return;
+      Navigator.pop(
+        context,
+        PickedLocation(
+          id: 'search',
+          label: place.name.isNotEmpty ? place.name : suggestion.title,
+          address: place.formattedAddress,
+          lat: place.lat,
+          lng: place.lng,
+          placeId: place.placeId,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _resolving = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(friendlyErrorMessage(e))));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final top = MediaQuery.of(context).padding.top;
-    final bottom = MediaQuery.of(context).padding.bottom;
-
     return Scaffold(
-      body: LayoutBuilder(builder: (context, constraints) {
-        final size = Size(constraints.maxWidth, constraints.maxHeight);
-        final pin = _pin ?? Offset(size.width / 2, size.height / 2 - 60);
-        final area = _areaFor(pin, size);
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        elevation: 0,
+        foregroundColor: _ink9,
+        title: Text(
+          l10n.searchAddress,
+          style: GoogleFonts.nunito(
+            fontSize: 19,
+            fontWeight: FontWeight.w900,
+            color: _ink9,
+          ),
+        ),
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            child: TextField(
+              controller: _controller,
+              autofocus: true,
+              textInputAction: TextInputAction.search,
+              onChanged: _onChanged,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14.5,
+                fontWeight: FontWeight.w600,
+                color: _ink9,
+              ),
+              decoration: InputDecoration(
+                hintText: l10n.streetAreaHint,
+                prefixIcon: const Icon(Icons.search_rounded, color: _ink4),
+                filled: true,
+                fillColor: const Color(0xFFF6F8F6),
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
+          if (_searching || _resolving)
+            const LinearProgressIndicator(minHeight: 2, color: _teal6),
+          Expanded(child: _results()),
+        ],
+      ),
+    );
+  }
 
-        return Stack(children: [
-          // Fake map
-          Positioned.fill(
-            child: GestureDetector(
-              onTapUp: (d) => setState(() => _pin = d.localPosition),
-              child: CustomPaint(painter: _PickMapPainter()),
+  Widget _results() {
+    if (_error != null) {
+      return _Notice(
+        icon: Icons.wifi_off_rounded,
+        text: _error!,
+        actionLabel: l10n.commonRetry,
+        onAction: () => _search(_controller.text.trim()),
+      );
+    }
+    if (_suggestions.isEmpty) {
+      final typed = _controller.text.trim().length >= 2;
+      return _Notice(
+        icon: typed ? Icons.search_off_rounded : Icons.travel_explore_rounded,
+        text: typed && !_searching
+            ? l10n.noMatchingPlaces
+            : l10n.startTypingToFind,
+      );
+    }
+    return ListView.separated(
+      itemCount: _suggestions.length,
+      separatorBuilder: (_, _) => const Divider(color: _line, height: 1, indent: 56),
+      itemBuilder: (_, i) {
+        final suggestion = _suggestions[i];
+        return ListTile(
+          // Tapping while a pick is resolving would race two navigations.
+          onTap: _resolving ? null : () => _pick(suggestion),
+          leading: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: _teal05,
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: const Icon(Icons.place_outlined, size: 19, color: _teal7),
+          ),
+          title: Text(
+            suggestion.title,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14.5,
+              fontWeight: FontWeight.w800,
+              color: _ink9,
             ),
           ),
-          // Pin
-          Positioned(
-            left: pin.dx - 18,
-            top: pin.dy - 36,
-            child: const IgnorePointer(
-              child: Icon(
-                Icons.location_on,
-                size: 36,
-                color: Color(0xFFE2554C),
-                shadows: [Shadow(color: Color(0x55000000), blurRadius: 8, offset: Offset(0, 3))],
-              ),
-            ),
-          ),
-          // Back button
-          Positioned(
-            top: top + 10,
-            left: 16,
-            child: GestureDetector(
-              onTap: () => Navigator.pop(context),
-              child: Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(13),
-                  boxShadow: const [BoxShadow(color: Color(0x22000000), blurRadius: 10, offset: Offset(0, 3))],
-                ),
-                child: const Icon(Icons.arrow_back, size: 20, color: _ink9),
-              ),
-            ),
-          ),
-          // Hint chip
-          Positioned(
-            top: top + 62,
-            left: 0,
-            right: 0,
-            child: IgnorePointer(
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.92),
-                    borderRadius: BorderRadius.circular(999),
-                    boxShadow: const [BoxShadow(color: Color(0x1A000000), blurRadius: 8, offset: Offset(0, 2))],
-                  ),
-                  child: Text(
-                    'Tap the map to move the pin',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: _ink5),
+          subtitle: suggestion.secondaryText.isEmpty
+              ? null
+              : Text(
+                  suggestion.secondaryText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: _ink4,
                   ),
                 ),
-              ),
-            ),
-          ),
-          // Bottom confirm card
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: bottom + 16,
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: const [BoxShadow(color: Color(0x28000000), blurRadius: 20, offset: Offset(0, 8))],
-              ),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  const Icon(Icons.location_on, size: 18, color: _teal7),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      area,
-                      style: GoogleFonts.plusJakartaSans(fontSize: 13.5, fontWeight: FontWeight.w700, color: _ink9),
-                    ),
-                  ),
-                ]),
-                const SizedBox(height: 14),
-                GestureDetector(
-                  onTap: () => Navigator.pop(
-                    context,
-                    PickedLocation(id: 'map', label: 'Map location', address: area),
-                  ),
-                  child: Container(
-                    height: 50,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(colors: [_teal6, _teal7]),
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: Center(
-                      child: Text(
-                        'Confirm location',
-                        style: GoogleFonts.nunito(fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white),
-                      ),
-                    ),
-                  ),
-                ),
-              ]),
-            ),
-          ),
-        ]);
-      }),
+        );
+      },
     );
   }
 }
 
-class _PickMapPainter extends CustomPainter {
+// ─── Small shared pieces ──────────────────────────────────────────────────────
+
+class _Notice extends StatelessWidget {
+  const _Notice({
+    required this.icon,
+    required this.text,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final IconData icon;
+  final String text;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
   @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-
-    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFFE9EEEA));
-
-    // Park patches
-    final park = Paint()..color = const Color(0xFFDCEBDD);
-    canvas.drawRect(Rect.fromLTWH(-20, h * 0.55, w * 0.42, h * 0.3), park);
-    canvas.drawRect(Rect.fromLTWH(w * 0.6, h * 0.08, w * 0.5, h * 0.22), park);
-    canvas.drawRect(Rect.fromLTWH(w * 0.1, h * 0.05, w * 0.25, h * 0.14), park);
-
-    // Water
-    final water = Path()
-      ..moveTo(0, h * 0.82)
-      ..quadraticBezierTo(w * 0.3, h * 0.75, w * 0.6, h * 0.85)
-      ..quadraticBezierTo(w * 0.8, h * 0.92, w, h * 0.86)
-      ..lineTo(w, h)
-      ..lineTo(0, h)
-      ..close();
-    canvas.drawPath(water, Paint()..color = const Color(0xFFCBE3F0));
-
-    // Roads
-    final road = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 10
-      ..style = PaintingStyle.stroke;
-    final edge = Paint()
-      ..color = const Color(0xFFD7DED8)
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke;
-    final roads = [
-      [Offset(-10, h * 0.3), Offset(w + 10, h * 0.42)],
-      [Offset(w * 0.28, -10), Offset(w * 0.36, h + 10)],
-      [Offset(w * 0.7, -10), Offset(w * 0.62, h * 0.8)],
-      [Offset(-10, h * 0.62), Offset(w + 10, h * 0.55)],
-    ];
-    for (final r in roads) {
-      canvas.drawLine(r[0], r[1], road);
-      canvas.drawLine(r[0], r[1], edge);
-    }
-
-    // Building blocks
-    final bld = Paint()..color = const Color(0xFFDFE6E0);
-    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(w * 0.08, h * 0.46, 46, 30), const Radius.circular(4)), bld);
-    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(w * 0.45, h * 0.18, 38, 26), const Radius.circular(4)), bld);
-    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(w * 0.78, h * 0.5, 42, 28), const Radius.circular(4)), bld);
-    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(w * 0.42, h * 0.66, 50, 24), const Radius.circular(4)), bld);
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: _ink4),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _ink5,
+                height: 1.35,
+              ),
+            ),
+          ),
+          if (actionLabel != null)
+            TextButton(
+              onPressed: onAction,
+              child: Text(
+                actionLabel!,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: _teal7,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
-
-  @override
-  bool shouldRepaint(_) => false;
 }
 
-// ─── Action card (map / current location) ─────────────────────────────────────
+// ─── Action card (search / current location) ──────────────────────────────────
 
 class _ActionCard extends StatelessWidget {
   const _ActionCard({
@@ -492,12 +683,14 @@ class _ActionCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.busy = false,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
@@ -512,7 +705,14 @@ class _ActionCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(icon, size: 21, color: _teal7),
+            if (busy)
+              const SizedBox(
+                width: 21,
+                height: 21,
+                child: CircularProgressIndicator(strokeWidth: 2.2, color: _teal7),
+              )
+            else
+              Icon(icon, size: 21, color: _teal7),
             const SizedBox(width: 13),
             Expanded(
               child: Column(
@@ -532,7 +732,7 @@ class _ActionCard extends StatelessWidget {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w600,
-                      color: _ink5,
+                      color: _ink4,
                     ),
                   ),
                 ],

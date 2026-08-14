@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/widgets/buttons.dart';
+import '../../../l10n/app_localizations.dart';
 import '../bloc/booking_bloc.dart';
 
 class ConfirmationScreen extends StatelessWidget {
@@ -13,6 +14,7 @@ class ConfirmationScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: Colors.white,
       body: BlocBuilder<BookingBloc, BookingState>(
@@ -37,8 +39,8 @@ class ConfirmationScreen extends StatelessWidget {
                         color: AppColors.tealDark, size: 48),
                   ),
                   const SizedBox(height: 24),
-                  const Text(
-                    'Booking Confirmed!',
+                  Text(
+                    l10n.bookingConfirmedBang,
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
@@ -61,26 +63,26 @@ class ConfirmationScreen extends StatelessWidget {
                     ),
                     child: Column(
                       children: [
-                        _DetailRow(label: 'Booking Reference', value: confirmation.bookingReference),
+                        _DetailRow(label: l10n.bookingReference, value: confirmation.bookingReference),
                         const SizedBox(height: 10),
-                        _DetailRow(label: 'Service', value: confirmation.serviceName),
+                        _DetailRow(label: l10n.lineService, value: confirmation.serviceName),
                         const SizedBox(height: 10),
-                        _DetailRow(label: 'Date & Time', value: confirmation.dateTimeLabel),
+                        _DetailRow(label: l10n.labelDateTime, value: confirmation.dateTimeLabel),
                         const SizedBox(height: 10),
-                        _DetailRow(label: 'Provider', value: confirmation.providerName),
+                        _DetailRow(label: l10n.provider, value: confirmation.providerName),
                         const SizedBox(height: 10),
                         const Divider(color: AppColors.border),
                         const SizedBox(height: 10),
                         _DetailRow(
-                          label: 'Amount Paid',
-                          value: 'AED ${confirmation.amountPaid.toStringAsFixed(0)}',
+                          label: l10n.amountPaid,
+                          value: '₹${confirmation.amountPaid.toStringAsFixed(0)}',
                           isTotal: true,
                         ),
                       ],
                     ),
                   ),
                   const Spacer(),
-                  PrimaryButton(label: 'Done', onPressed: onDone),
+                  PrimaryButton(label: l10n.commonDone, onPressed: onDone),
                 ],
               ),
             ),

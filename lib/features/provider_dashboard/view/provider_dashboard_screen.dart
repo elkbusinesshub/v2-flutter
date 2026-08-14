@@ -5,14 +5,35 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../../data/models/provider_models.dart';
+import '../../../l10n/app_localizations.dart';
 import '../cubit/provider_dashboard_cubit.dart';
+
+
+/// Runs a cubit mutation and reports its failure message. Without this the
+/// availability toggle and accept/decline failed silently.
+Future<void> _reportIfFailed(
+  BuildContext context,
+  Future<String?> Function() action,
+) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final error = await action();
+  if (error == null) return;
+  messenger
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(error)));
+}
 
 class ProviderDashboardScreen extends StatefulWidget {
   const ProviderDashboardScreen({
     super.key,
+    required this.onRegisterTap,
     this.onScheduleTap,
     this.onEarningsTap,
   });
+
+  /// Opens provider registration when the backend says there is no
+  /// provider profile yet.
+  final VoidCallback onRegisterTap;
 
   final VoidCallback? onScheduleTap;
   final VoidCallback? onEarningsTap;
@@ -30,6 +51,7 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.grayLight,
       body: BlocBuilder<ProviderDashboardCubit, ProviderDashboardState>(
@@ -38,9 +60,17 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
               state.status == ProviderDashboardStatus.initial) {
             return const LoadingView();
           }
+          if (state.status == ProviderDashboardStatus.guest) {
+            return SignInRequiredView(
+              message: l10n.providerSignInPrompt,
+            );
+          }
+          if (state.status == ProviderDashboardStatus.notRegistered) {
+            return RegistrationRequiredView(onRegister: widget.onRegisterTap);
+          }
           if (state.status == ProviderDashboardStatus.error || state.dashboard == null) {
             return ErrorRetryView(
-              message: state.errorMessage ?? 'Something went wrong',
+              message: state.errorMessage ?? l10n.errorGeneric,
               onRetry: () => context.read<ProviderDashboardCubit>().loadDashboard(),
             );
           }
@@ -96,7 +126,7 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Text(
-                              dashboard.isAvailable ? 'Available' : 'Offline',
+                              dashboard.isAvailable ? l10n.available : l10n.offline,
                               style: const TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
@@ -107,8 +137,10 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
                               value: dashboard.isAvailable,
                               activeThumbColor: Colors.white,
                               activeTrackColor: AppColors.teal,
-                              onChanged: (_) =>
-                                  context.read<ProviderDashboardCubit>().toggleAvailability(),
+                              onChanged: (_) => _reportIfFailed(
+                                context,
+                                context.read<ProviderDashboardCubit>().toggleAvailability,
+                              ),
                             ),
                           ],
                         ),
@@ -133,7 +165,7 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
                         Expanded(
                           child: _QuickLinkCard(
                             icon: Icons.calendar_month,
-                            label: 'Schedule',
+                            label: l10n.stepSchedule,
                             onTap: widget.onScheduleTap,
                           ),
                         ),
@@ -141,16 +173,16 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
                         Expanded(
                           child: _QuickLinkCard(
                             icon: Icons.account_balance_wallet_outlined,
-                            label: 'Earnings',
+                            label: l10n.earnings,
                             onTap: widget.onEarningsTap,
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 20),
-                    const Text(
-                      'New Requests',
-                      style: TextStyle(
+                    Text(
+                      l10n.newRequests,
+                      style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                         color: AppColors.dark,
@@ -158,7 +190,7 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
                     ),
                     const SizedBox(height: 12),
                     if (dashboard.requests.isEmpty)
-                      const EmptyStateView(message: 'No new requests right now')
+                      EmptyStateView(message: l10n.noNewRequestsNow)
                     else
                       for (final request in dashboard.requests)
                         _RequestCard(
@@ -266,6 +298,7 @@ class _RequestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -285,7 +318,7 @@ class _RequestCard extends StatelessWidget {
                 ),
               ),
               Text(
-                'AED ${request.amount.toStringAsFixed(0)}',
+                '₹${request.amount.toStringAsFixed(0)}',
                 style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.dark),
               ),
             ],
@@ -310,9 +343,12 @@ class _RequestCard extends StatelessWidget {
                     child: OutlinedButton(
                       onPressed: isResponding
                           ? null
-                          : () => context
-                              .read<ProviderDashboardCubit>()
-                              .respondToRequest(request, accept: false),
+                          : () => _reportIfFailed(
+                              context,
+                              () => context
+                                  .read<ProviderDashboardCubit>()
+                                  .respondToRequest(request, accept: false),
+                            ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.danger,
                         side: const BorderSide(color: AppColors.danger),
@@ -320,7 +356,7 @@ class _RequestCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(AppRadius.md),
                         ),
                       ),
-                      child: const Text('Decline', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      child: Text(l10n.decline, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                     ),
                   ),
                 ),
@@ -331,9 +367,12 @@ class _RequestCard extends StatelessWidget {
                     child: ElevatedButton(
                       onPressed: isResponding
                           ? null
-                          : () => context
-                              .read<ProviderDashboardCubit>()
-                              .respondToRequest(request, accept: true),
+                          : () => _reportIfFailed(
+                              context,
+                              () => context
+                                  .read<ProviderDashboardCubit>()
+                                  .respondToRequest(request, accept: true),
+                            ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.teal,
                         foregroundColor: Colors.white,
@@ -351,7 +390,7 @@ class _RequestCard extends StatelessWidget {
                                 valueColor: AlwaysStoppedAnimation(Colors.white),
                               ),
                             )
-                          : const Text('Accept', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                          : Text(l10n.accept, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                     ),
                   ),
                 ),
@@ -367,7 +406,7 @@ class _RequestCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppRadius.sm),
               ),
               child: Text(
-                request.status == ProviderRequestStatus.accepted ? 'Accepted' : 'Declined',
+                request.status == ProviderRequestStatus.accepted ? l10n.accepted : l10n.declined,
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,

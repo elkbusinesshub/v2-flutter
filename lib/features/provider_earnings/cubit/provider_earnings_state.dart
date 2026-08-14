@@ -1,6 +1,6 @@
 part of 'provider_earnings_cubit.dart';
 
-enum ProviderEarningsStatus { initial, loading, loaded, error }
+enum ProviderEarningsStatus { initial, loading, loaded, guest, notRegistered, error }
 
 class ProviderEarningsState extends Equatable {
   const ProviderEarningsState({

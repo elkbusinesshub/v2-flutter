@@ -35,6 +35,7 @@ class AppRoutes {
 
   static String review(String bookingId) => '/review/$bookingId';
 
+  static const addresses = '/addresses';
   static const bestSellers = '/best-sellers';
   static const sellerPanel = '/seller';
   static const elkRepairHome = '/elkrep';

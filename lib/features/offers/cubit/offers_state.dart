@@ -1,6 +1,6 @@
 part of 'offers_cubit.dart';
 
-enum OffersStatus { initial, loading, loaded, error }
+enum OffersStatus { initial, loading, loaded, guest, error }
 
 class OffersState extends Equatable {
   const OffersState({

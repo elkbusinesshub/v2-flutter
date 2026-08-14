@@ -3,7 +3,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
+import '../../../core/widgets/buttons.dart';
 import '../../../core/widgets/state_views.dart';
+import '../../../data/models/user_model.dart';
+import '../../../l10n/app_localizations.dart';
 import '../cubit/profile_cubit.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -14,6 +17,7 @@ class ProfileScreen extends StatefulWidget {
     this.onOffersTap,
     this.onNotificationsTap,
     this.onLanguageTap,
+    this.onAddressesTap,
     this.onRateServiceTap,
     this.onBecomeProviderTap,
     this.onProviderDashboardTap,
@@ -24,6 +28,7 @@ class ProfileScreen extends StatefulWidget {
   final VoidCallback? onOffersTap;
   final VoidCallback? onNotificationsTap;
   final VoidCallback? onLanguageTap;
+  final VoidCallback? onAddressesTap;
   final VoidCallback? onRateServiceTap;
   final VoidCallback? onBecomeProviderTap;
   final VoidCallback? onProviderDashboardTap;
@@ -40,19 +45,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _confirmSignOut() async {
+    final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Sign Out'),
-        content: const Text('Are you sure you want to sign out?'),
+        title: Text(l10n.profileSignOut),
+        content: Text(l10n.profileSignOutConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
+            child: Text(l10n.commonCancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Sign Out', style: TextStyle(color: AppColors.danger)),
+            child: Text(l10n.profileSignOut,
+                style: const TextStyle(color: AppColors.danger)),
           ),
         ],
       ),
@@ -63,8 +70,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (mounted) widget.onSignedOut();
   }
 
+  Future<void> _showEditProfileSheet(UserModel user) async {
+    final cubit = context.read<ProfileCubit>();
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
+      ),
+      builder: (sheetContext) => BlocProvider.value(
+        value: cubit,
+        child: _EditProfileSheet(user: user),
+      ),
+    );
+    if (saved == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).profileUpdated)),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     return Scaffold(
       backgroundColor: AppColors.grayLight,
       body: BlocBuilder<ProfileCubit, ProfileState>(
@@ -72,9 +103,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
           if (state.status == ProfileStatus.loading || state.status == ProfileStatus.initial) {
             return const LoadingView();
           }
+          if (state.status == ProfileStatus.guest) {
+            return _GuestView(
+              onSignIn: () async {
+                await context.read<ProfileCubit>().exitGuestMode();
+                if (context.mounted) widget.onSignedOut();
+              },
+            );
+          }
           if (state.status == ProfileStatus.error || state.user == null) {
             return ErrorRetryView(
-              message: state.errorMessage ?? 'Something went wrong',
+              message: state.errorMessage ?? l10n.errorGeneric,
               onRetry: () => context.read<ProfileCubit>().loadProfile(),
             );
           }
@@ -106,13 +145,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Text(
-                      user.name,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          user.name,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        IconButton(
+                          onPressed: () => _showEditProfileSheet(user),
+                          icon: Icon(
+                            Icons.edit_outlined,
+                            size: 18,
+                            color: Colors.white.withValues(alpha: 0.8),
+                          ),
+                          visualDensity: VisualDensity.compact,
+                          tooltip: l10n.profileEdit,
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -122,9 +177,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 20),
                     Row(
                       children: [
-                        _StatTile(label: 'Bookings', value: '${user.bookingsCount}'),
-                        _StatTile(label: 'Reward Points', value: '${user.rewardPoints}'),
-                        _StatTile(label: 'Rating', value: '${user.rating} ★'),
+                        _StatTile(label: l10n.navBookings, value: '${user.bookingsCount}'),
+                        _StatTile(label: l10n.profileRewardPoints, value: '${user.rewardPoints}'),
+                        _StatTile(label: l10n.profileRating, value: '${user.rating} ★'),
                       ],
                     ),
                   ],
@@ -135,79 +190,85 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const _SectionLabel('My Account'),
+                    _SectionLabel(l10n.profileMyAccount),
                     _MenuCard(
                       children: [
                         _MenuTile(
                           icon: Icons.account_balance_wallet_outlined,
                           colorHex: 0xFFE0F7F5,
-                          label: 'Wallet',
+                          label: l10n.navWallet,
                           onTap: widget.onWalletTap,
                         ),
                         _MenuTile(
                           icon: Icons.card_giftcard,
                           colorHex: 0xFFFEF8DC,
-                          label: 'Offers & Rewards',
+                          label: l10n.profileOffersRewards,
                           onTap: widget.onOffersTap,
                         ),
                         _MenuTile(
                           icon: Icons.notifications_none,
                           colorHex: 0xFFDBEAFE,
-                          label: 'Notifications',
+                          label: l10n.profileNotifications,
                           onTap: widget.onNotificationsTap,
+                        ),
+                        _MenuTile(
+                          icon: Icons.location_on_outlined,
+                          colorHex: 0xFFE0F7F5,
+                          label: l10n.profileSavedAddresses,
+                          onTap: widget.onAddressesTap,
                         ),
                         _MenuTile(
                           icon: Icons.language,
                           colorHex: 0xFFEDE9FE,
-                          label: 'Language',
+                          label: l10n.profileLanguage,
                           onTap: widget.onLanguageTap,
                         ),
                         _MenuTile(
                           icon: Icons.star_outline,
                           colorHex: 0xFFFEF2F2,
-                          label: 'Rate a Service',
+                          label: l10n.profileRateService,
                           onTap: widget.onRateServiceTap,
                           showDivider: false,
                         ),
                       ],
                     ),
                     const SizedBox(height: 20),
-                    const _SectionLabel('Provider Tools'),
+                    _SectionLabel(l10n.profileProviderTools),
                     _MenuCard(
                       children: [
                         _MenuTile(
                           icon: Icons.storefront_outlined,
                           colorHex: 0xFFD1FAE5,
-                          label: 'Become a Provider',
+                          label: l10n.becomeProvider,
                           onTap: widget.onBecomeProviderTap,
                         ),
                         _MenuTile(
                           icon: Icons.dashboard_outlined,
                           colorHex: 0xFFE0F7F5,
-                          label: 'Provider Dashboard',
+                          label: l10n.profileProviderDashboard,
                           onTap: widget.onProviderDashboardTap,
                           showDivider: false,
                         ),
                       ],
                     ),
                     const SizedBox(height: 20),
-                    const _SectionLabel('Support'),
+                    _SectionLabel(l10n.profileSupport),
                     _MenuCard(
-                      children: const [
+                      children: [
                         _MenuTile(
                           icon: Icons.help_outline,
                           colorHex: 0xFFD1FAE5,
-                          label: 'Help & Support',
+                          label: l10n.profileHelpSupport,
                         ),
                         _MenuTile(
                           icon: Icons.info_outline,
                           colorHex: 0xFFE0F7F5,
-                          label: 'About ELK Business Hub',
+                          label: l10n.profileAbout,
                         ),
                         _MenuTile(
                           icon: Icons.description_outlined,
                           colorHex: 0xFFFEF8DC,
-                          label: 'Terms & Privacy Policy',
+                          label: l10n.profileTermsPrivacy,
                           showDivider: false,
                         ),
                       ],
@@ -219,7 +280,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           icon: Icons.logout,
                           colorHex: 0xFFFEF2F2,
                           iconColor: AppColors.danger,
-                          label: 'Sign Out',
+                          label: l10n.profileSignOut,
                           labelColor: AppColors.danger,
                           isLoading: state.isSigningOut,
                           onTap: _confirmSignOut,
@@ -355,6 +416,162 @@ class _MenuTile extends StatelessWidget {
         ),
         if (showDivider) const Divider(height: 1, color: AppColors.border, indent: 14, endIndent: 14),
       ],
+    );
+  }
+}
+
+/// Shown on the profile tab while browsing as a guest — there is no backend
+/// session, so instead of the profile we offer the way into one.
+class _GuestView extends StatelessWidget {
+  const _GuestView({required this.onSignIn});
+
+  final VoidCallback onSignIn;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.person_outline, size: 56, color: AppColors.gray),
+            const SizedBox(height: 16),
+            Text(
+              AppLocalizations.of(context).profileGuestTitle,
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: AppColors.dark,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              AppLocalizations.of(context).profileGuestBody,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 13, color: AppColors.gray),
+            ),
+            const SizedBox(height: 24),
+            PrimaryButton(
+              label: AppLocalizations.of(context).signIn,
+              onPressed: onSignIn,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Bottom sheet for editing name and email (`PATCH /users/me`).
+class _EditProfileSheet extends StatefulWidget {
+  const _EditProfileSheet({required this.user});
+
+  final UserModel user;
+
+  @override
+  State<_EditProfileSheet> createState() => _EditProfileSheetState();
+}
+
+class _EditProfileSheetState extends State<_EditProfileSheet> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _emailController;
+  String? _validationError;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.user.name);
+    _emailController = TextEditingController(text: widget.user.email ?? '');
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  String? _validate(String name, String email) {
+    final l10n = AppLocalizations.of(context);
+    if (name.isEmpty) return l10n.profileNameRequired;
+    if (name.length > 100) return l10n.profileNameTooLong;
+    if (email.isNotEmpty &&
+        !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+      return l10n.profileEmailInvalid;
+    }
+    return null;
+  }
+
+  Future<void> _save() async {
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+
+    final validationError = _validate(name, email);
+    setState(() => _validationError = validationError);
+    if (validationError != null) return;
+
+    final cubit = context.read<ProfileCubit>();
+    final saved = await cubit.updateProfile(
+      name: name,
+      email: email.isEmpty ? null : email,
+    );
+    if (!mounted) return;
+    if (saved) {
+      Navigator.pop(context, true);
+    } else {
+      setState(() => _validationError = cubit.state.errorMessage);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final isSaving = context
+        .select((ProfileCubit cubit) => cubit.state.isSaving);
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        24, 24, 24, 24 + MediaQuery.of(context).viewInsets.bottom),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.profileEdit,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: AppColors.dark,
+            ),
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: _nameController,
+            textCapitalization: TextCapitalization.words,
+            decoration: InputDecoration(labelText: l10n.profileNameLabel),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _emailController,
+            keyboardType: TextInputType.emailAddress,
+            decoration: InputDecoration(labelText: l10n.profileEmailLabel),
+          ),
+          if (_validationError != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _validationError!,
+              style: const TextStyle(fontSize: 12, color: AppColors.danger),
+            ),
+          ],
+          const SizedBox(height: 24),
+          PrimaryButton(
+            label: l10n.commonSave,
+            isLoading: isSaving,
+            onPressed: isSaving ? null : _save,
+          ),
+        ],
+      ),
     );
   }
 }

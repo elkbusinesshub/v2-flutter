@@ -6,6 +6,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../../data/models/offer_models.dart';
+import '../../../l10n/app_localizations.dart';
 import '../cubit/offers_cubit.dart';
 
 class OffersScreen extends StatefulWidget {
@@ -31,10 +32,11 @@ class _OffersScreenState extends State<OffersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.grayLight,
       appBar: AppBar(
-        title: const Text('Offers & Rewards'),
+        title: Text(l10n.profileOffersRewards),
         backgroundColor: AppColors.dark,
         foregroundColor: Colors.white,
       ),
@@ -43,9 +45,14 @@ class _OffersScreenState extends State<OffersScreen> {
           if (state.status == OffersStatus.loading || state.status == OffersStatus.initial) {
             return const LoadingView();
           }
+          if (state.status == OffersStatus.guest) {
+            return SignInRequiredView(
+              message: l10n.offersSignInPrompt,
+            );
+          }
           if (state.status == OffersStatus.error || state.page == null) {
             return ErrorRetryView(
-              message: state.errorMessage ?? 'Something went wrong',
+              message: state.errorMessage ?? l10n.errorGeneric,
               onRetry: () => context.read<OffersCubit>().loadOffers(),
             );
           }
@@ -98,8 +105,8 @@ class _OffersScreenState extends State<OffersScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              const Text(
-                'Available Offers',
+              Text(
+                l10n.availableOffers,
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
@@ -107,6 +114,15 @@ class _OffersScreenState extends State<OffersScreen> {
                 ),
               ),
               const SizedBox(height: 12),
+              if (page.offers.isEmpty)
+                Padding(
+                  padding: EdgeInsets.symmetric(vertical: 28),
+                  child: Text(
+                    l10n.noOffersRunning,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  ),
+                ),
               for (final offer in page.offers)
                 _OfferCard(offer: offer, onCopyCode: () => _copyCode(offer.code)),
             ],

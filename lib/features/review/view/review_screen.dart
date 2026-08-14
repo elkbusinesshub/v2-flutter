@@ -5,6 +5,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/widgets/buttons.dart';
 import '../../../core/widgets/state_views.dart';
+import '../../../l10n/app_localizations.dart';
 import '../cubit/review_cubit.dart';
 
 class ReviewScreen extends StatefulWidget {
@@ -34,24 +35,39 @@ class _ReviewScreenState extends State<ReviewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Rate Your Experience'),
+        title: Text(l10n.rateYourExperience),
         backgroundColor: AppColors.dark,
         foregroundColor: Colors.white,
       ),
       body: BlocConsumer<ReviewCubit, ReviewState>(
         listenWhen: (previous, current) =>
-            previous.status != current.status && current.status == ReviewStatus.submitted,
-        listener: (context, state) => widget.onDone(),
+            previous.status != current.status ||
+            previous.errorMessage != current.errorMessage,
+        listener: (context, state) {
+          if (state.status == ReviewStatus.submitted) {
+            widget.onDone();
+          } else if (state.errorMessage != null && state.target != null) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(SnackBar(content: Text(state.errorMessage!)));
+          }
+        },
         builder: (context, state) {
           if (state.status == ReviewStatus.loading || state.status == ReviewStatus.initial) {
             return const LoadingView();
           }
+          if (state.status == ReviewStatus.guest) {
+            return SignInRequiredView(
+              message: l10n.reviewSignInPrompt,
+            );
+          }
           if (state.status == ReviewStatus.error && state.target == null) {
             return ErrorRetryView(
-              message: state.errorMessage ?? 'Something went wrong',
+              message: state.errorMessage ?? l10n.errorGeneric,
               onRetry: () => context.read<ReviewCubit>().loadTarget(widget.bookingId),
             );
           }
@@ -104,9 +120,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
                       ),
                     ),
                     const SizedBox(height: 28),
-                    const Center(
+                    Center(
                       child: Text(
-                        'How was your experience?',
+                        l10n.howWasExperience,
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -134,8 +150,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
                       }),
                     ),
                     const SizedBox(height: 28),
-                    const Text(
-                      'What went well?',
+                    Text(
+                      l10n.whatWentWell,
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -172,8 +188,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
                       }).toList(),
                     ),
                     const SizedBox(height: 24),
-                    const Text(
-                      'Add a comment (optional)',
+                    Text(
+                      l10n.addCommentOptional,
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -190,8 +206,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
                         controller: _commentController,
                         maxLines: 4,
                         onChanged: context.read<ReviewCubit>().commentChanged,
-                        decoration: const InputDecoration(
-                          hintText: 'Share details about your experience...',
+                        decoration: InputDecoration(
+                          hintText: l10n.shareDetailsHint,
                           hintStyle: TextStyle(fontSize: 13, color: AppColors.gray),
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.all(14),
@@ -237,7 +253,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                   ],
                 ),
                 child: PrimaryButton(
-                  label: 'Submit Review',
+                  label: l10n.submitReview,
                   isLoading: state.status == ReviewStatus.submitting,
                   onPressed: state.canSubmit
                       ? () => context.read<ReviewCubit>().submit(widget.bookingId)

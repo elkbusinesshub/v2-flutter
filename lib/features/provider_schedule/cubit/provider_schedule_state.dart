@@ -1,6 +1,6 @@
 part of 'provider_schedule_cubit.dart';
 
-enum ProviderScheduleStatus { initial, loading, loaded, error }
+enum ProviderScheduleStatus { initial, loading, loaded, guest, notRegistered, error }
 
 class ProviderScheduleState extends Equatable {
   const ProviderScheduleState({

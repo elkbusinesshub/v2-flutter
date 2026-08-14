@@ -5,10 +5,15 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../../data/models/provider_models.dart';
+import '../../../l10n/app_localizations.dart';
 import '../cubit/provider_schedule_cubit.dart';
 
 class ProviderScheduleScreen extends StatefulWidget {
-  const ProviderScheduleScreen({super.key});
+  const ProviderScheduleScreen({super.key, required this.onRegisterTap});
+
+  /// Opens provider registration when the backend says there is no provider
+  /// profile yet.
+  final VoidCallback onRegisterTap;
 
   @override
   State<ProviderScheduleScreen> createState() => _ProviderScheduleScreenState();
@@ -23,10 +28,11 @@ class _ProviderScheduleScreenState extends State<ProviderScheduleScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.grayLight,
       appBar: AppBar(
-        title: const Text('My Schedule'),
+        title: Text(l10n.mySchedule),
         backgroundColor: AppColors.dark,
         foregroundColor: Colors.white,
       ),
@@ -36,9 +42,17 @@ class _ProviderScheduleScreenState extends State<ProviderScheduleScreen> {
               state.status == ProviderScheduleStatus.initial) {
             return const LoadingView();
           }
+          if (state.status == ProviderScheduleStatus.guest) {
+            return SignInRequiredView(
+              message: l10n.providerSignInPrompt,
+            );
+          }
+          if (state.status == ProviderScheduleStatus.notRegistered) {
+            return RegistrationRequiredView(onRegister: widget.onRegisterTap);
+          }
           if (state.status == ProviderScheduleStatus.error || state.schedule == null) {
             return ErrorRetryView(
-              message: state.errorMessage ?? 'Something went wrong',
+              message: state.errorMessage ?? l10n.errorGeneric,
               onRetry: () => context.read<ProviderScheduleCubit>().loadSchedule(),
             );
           }
@@ -79,7 +93,7 @@ class _ProviderScheduleScreenState extends State<ProviderScheduleScreen> {
                           ),
                         ),
                         Text(
-                          "Today's Bookings",
+                          l10n.todaysBookings,
                           style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.85)),
                         ),
                       ],
@@ -88,9 +102,9 @@ class _ProviderScheduleScreenState extends State<ProviderScheduleScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              const Text(
-                'Availability',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.dark),
+              Text(
+                l10n.availability,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.dark),
               ),
               const SizedBox(height: 12),
               Row(
@@ -100,9 +114,9 @@ class _ProviderScheduleScreenState extends State<ProviderScheduleScreen> {
                 ],
               ),
               const SizedBox(height: 24),
-              const Text(
-                "Today's Time Slots",
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.dark),
+              Text(
+                l10n.todaysTimeSlots,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.dark),
               ),
               const SizedBox(height: 12),
               for (final slot in schedule.slots) _SlotTile(slot: slot),
@@ -166,10 +180,11 @@ class _SlotTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final (label, bgColor, fgColor) = switch (slot.status) {
-      ScheduleSlotStatus.active => ('Booked', AppColors.tealLight, AppColors.tealDark),
+      ScheduleSlotStatus.active => (l10n.booked, AppColors.tealLight, AppColors.tealDark),
       ScheduleSlotStatus.pending => ('Pending', AppColors.yellowLight, const Color(0xFF8A6A00)),
-      ScheduleSlotStatus.available => ('Available', AppColors.grayLight, AppColors.gray),
+      ScheduleSlotStatus.available => (l10n.available, AppColors.grayLight, AppColors.gray),
     };
 
     return Container(

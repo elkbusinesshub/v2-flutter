@@ -7,6 +7,7 @@ import '../../../core/widgets/badges.dart';
 import '../../../core/widgets/buttons.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../../data/models/service_models.dart';
+import '../../../l10n/app_localizations.dart';
 import '../cubit/service_detail_cubit.dart';
 
 class ServiceDetailScreen extends StatefulWidget {
@@ -32,6 +33,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.grayLight,
       body: BlocBuilder<ServiceDetailCubit, ServiceDetailState>(
@@ -40,10 +42,15 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
               state.status == ServiceDetailStatus.initial) {
             return const LoadingView();
           }
+          if (state.status == ServiceDetailStatus.guest) {
+            return SignInRequiredView(
+              message: l10n.serviceSignInPrompt,
+            );
+          }
           if (state.status == ServiceDetailStatus.error ||
               state.detail == null) {
             return ErrorRetryView(
-              message: state.errorMessage ?? 'Something went wrong',
+              message: state.errorMessage ?? l10n.errorGeneric,
               onRetry: () =>
                   context.read<ServiceDetailCubit>().loadDetail(widget.serviceId),
             );
@@ -113,7 +120,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                         _StatsRow(detail: detail),
                         const SizedBox(height: 16),
                         _SectionCard(
-                          title: "What's Included",
+                          title: l10n.whatsIncluded,
                           child: Wrap(
                             spacing: 8,
                             runSpacing: 8,
@@ -124,7 +131,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                         ),
                         const SizedBox(height: 16),
                         _SectionCard(
-                          title: 'Description',
+                          title: l10n.description,
                           child: Text(
                             detail.description,
                             style: const TextStyle(
@@ -233,13 +240,14 @@ class _StatsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Row(
       children: [
-        Expanded(child: _StatTile(icon: Icons.schedule, label: 'Duration', value: detail.duration)),
+        Expanded(child: _StatTile(icon: Icons.schedule, label: l10n.duration, value: detail.duration)),
         const SizedBox(width: 12),
-        Expanded(child: _StatTile(icon: Icons.groups_outlined, label: 'Team Size', value: detail.teamSize)),
+        Expanded(child: _StatTile(icon: Icons.groups_outlined, label: l10n.teamSize, value: detail.teamSize)),
         const SizedBox(width: 12),
-        Expanded(child: _StatTile(icon: Icons.task_alt, label: 'Bookings', value: detail.bookings)),
+        Expanded(child: _StatTile(icon: Icons.task_alt, label: l10n.navBookings, value: detail.bookings)),
       ],
     );
   }
@@ -322,6 +330,7 @@ class _BookingBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       padding: EdgeInsets.fromLTRB(
         20,
@@ -340,10 +349,10 @@ class _BookingBar extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Price', style: TextStyle(fontSize: 11, color: AppColors.gray)),
+              Text(l10n.price, style: const TextStyle(fontSize: 11, color: AppColors.gray)),
               Text.rich(
                 TextSpan(
-                  text: 'AED ${detail.price.toStringAsFixed(0)}',
+                  text: '₹${detail.price.toStringAsFixed(0)}',
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
@@ -365,7 +374,7 @@ class _BookingBar extends StatelessWidget {
           ),
           const SizedBox(width: 16),
           Expanded(
-            child: PrimaryButton(label: 'Book Now', onPressed: onBookNow),
+            child: PrimaryButton(label: l10n.bookNow, onPressed: onBookNow),
           ),
         ],
       ),

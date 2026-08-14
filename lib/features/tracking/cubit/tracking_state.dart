@@ -1,6 +1,6 @@
 part of 'tracking_cubit.dart';
 
-enum TrackingStatus { initial, loading, loaded, error }
+enum TrackingStatus { initial, loading, loaded, guest, error }
 
 class TrackingState extends Equatable {
   const TrackingState({

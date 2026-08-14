@@ -1,23 +1,35 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/errors/api_exception.dart';
+import '../../../core/utils/app_preferences.dart';
 import '../../../data/models/review_model.dart';
 import '../../../data/repositories/review_repository.dart';
 
 part 'review_state.dart';
 
 class ReviewCubit extends Cubit<ReviewState> {
-  ReviewCubit(this._repository) : super(const ReviewState());
+  ReviewCubit(this._repository, this._preferences) : super(const ReviewState());
 
   final ReviewRepository _repository;
+  final AppPreferences _preferences;
 
   Future<void> loadTarget(String bookingId) async {
+    if (_preferences.isGuest) {
+      emit(state.copyWith(status: ReviewStatus.guest));
+      return;
+    }
     emit(state.copyWith(status: ReviewStatus.loading));
     try {
       final target = await _repository.getReviewTarget(bookingId);
       emit(state.copyWith(status: ReviewStatus.loaded, target: target));
     } catch (e) {
-      emit(state.copyWith(status: ReviewStatus.error, errorMessage: e.toString()));
+      // Covers "already reviewed" and "not completed" too — the backend's
+      // message is the clearest thing to show.
+      emit(state.copyWith(
+        status: ReviewStatus.error,
+        errorMessage: friendlyErrorMessage(e),
+      ));
     }
   }
 
@@ -51,7 +63,11 @@ class ReviewCubit extends Cubit<ReviewState> {
       ));
       emit(state.copyWith(status: ReviewStatus.submitted));
     } catch (e) {
-      emit(state.copyWith(status: ReviewStatus.error, errorMessage: e.toString()));
+      // Back to the filled-in form so the rating isn't lost on a retry.
+      emit(state.copyWith(
+        status: ReviewStatus.loaded,
+        errorMessage: friendlyErrorMessage(e),
+      ));
     }
   }
 }

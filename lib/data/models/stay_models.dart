@@ -1,11 +1,13 @@
+import '../../core/l10n/l10n.dart';
+
 enum StayCategoryType { pgStay, mensHostel, womensHostel, homestay }
 
 extension StayCategoryTypeX on StayCategoryType {
   String get displayName => switch (this) {
-        StayCategoryType.pgStay => 'PG Stays',
-        StayCategoryType.mensHostel => "Men's Hostel",
-        StayCategoryType.womensHostel => "Women's Hostel",
-        StayCategoryType.homestay => 'Homestays',
+        StayCategoryType.pgStay => L10n.current.pgStays,
+        StayCategoryType.mensHostel => L10n.current.svcMensHostel,
+        StayCategoryType.womensHostel => L10n.current.svcWomensHostel,
+        StayCategoryType.homestay => L10n.current.homestays,
       };
 
   String get id => switch (this) {
@@ -119,20 +121,64 @@ class StayModel {
       );
 }
 
+/// A bookable room option on a stay (backend `roomOptions` on stay detail).
+class StayRoomOption {
+  const StayRoomOption({
+    required this.id,
+    required this.kind,
+    required this.subtitle,
+    required this.pricePerMonth,
+  });
+
+  final String id;
+  final String kind;
+  final String subtitle;
+  final int pricePerMonth;
+
+  factory StayRoomOption.fromJson(Map<String, dynamic> json) => StayRoomOption(
+        id: json['id'] as String,
+        kind: json['kind'] as String,
+        subtitle: json['subtitle'] as String,
+        pricePerMonth: json['pricePerMonth'] as int,
+      );
+}
+
+/// Stay detail — the listing plus the viewer's saved flag and room options.
+class StayDetailModel {
+  const StayDetailModel({
+    required this.stay,
+    required this.isSaved,
+    required this.roomOptions,
+  });
+
+  final StayModel stay;
+  final bool isSaved;
+  final List<StayRoomOption> roomOptions;
+
+  factory StayDetailModel.fromJson(Map<String, dynamic> json) => StayDetailModel(
+        stay: StayModel.fromJson(json),
+        isSaved: json['isSaved'] as bool? ?? false,
+        roomOptions: (json['roomOptions'] as List? ?? const [])
+            .map((e) => StayRoomOption.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+}
+
 enum StayBookingStatus { confirmed, visitBooked, pending, past }
 
 extension StayBookingStatusX on StayBookingStatus {
   String get label => switch (this) {
-        StayBookingStatus.confirmed => 'Confirmed',
-        StayBookingStatus.visitBooked => 'Visit booked',
-        StayBookingStatus.pending => 'Pending',
-        StayBookingStatus.past => 'Completed',
+        StayBookingStatus.confirmed => L10n.current.statusConfirmed,
+        StayBookingStatus.visitBooked => L10n.current.statusVisitBooked,
+        StayBookingStatus.pending => L10n.current.statusPending,
+        StayBookingStatus.past => L10n.current.statusCompleted,
       };
 }
 
 class StayBookingModel {
   const StayBookingModel({
     required this.id,
+    this.code = '',
     required this.stayName,
     required this.badge,
     required this.roomType,
@@ -148,6 +194,9 @@ class StayBookingModel {
   });
 
   final String id;
+
+  /// Booking reference shown on confirmation, e.g. `ELK-7QK2M`.
+  final String code;
   final String stayName;
   final String badge;
   final String roomType;
@@ -164,6 +213,7 @@ class StayBookingModel {
   factory StayBookingModel.fromJson(Map<String, dynamic> json) =>
       StayBookingModel(
         id: json['id'] as String,
+        code: json['code'] as String? ?? '',
         stayName: json['stayName'] as String,
         badge: json['badge'] as String,
         roomType: json['roomType'] as String,

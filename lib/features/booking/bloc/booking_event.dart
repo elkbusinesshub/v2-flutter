@@ -34,6 +34,19 @@ class BookingTimeSelected extends BookingEvent {
   List<Object?> get props => [timeSlot];
 }
 
+class BookingAddressSelected extends BookingEvent {
+  const BookingAddressSelected(this.address, {this.lat, this.lng});
+
+  final String address;
+
+  /// Null when the user typed the address rather than picking it.
+  final double? lat;
+  final double? lng;
+
+  @override
+  List<Object?> get props => [address, lat, lng];
+}
+
 class ProceedToPaymentRequested extends BookingEvent {
   const ProceedToPaymentRequested();
 }

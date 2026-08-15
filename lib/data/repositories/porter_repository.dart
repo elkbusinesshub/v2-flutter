@@ -1,5 +1,6 @@
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../features/seller/cubit/partner_cubit.dart';
 import '../models/porter_models.dart';
 
 /// The porter/delivery vertical against the backend (`/porter/*`).
@@ -67,4 +68,30 @@ class PorterRepository {
 
   Future<void> cancelBooking(String bookingId) =>
       _client.post(ApiEndpoints.porterCancel(bookingId));
+
+  // ─── the partner's side ─────────────────────────────────────────────────
+
+  /// Takes an offered delivery. Fails with 409 when somebody accepted first.
+  Future<void> acceptJob(String bookingId) async {
+    await _client.post(ApiEndpoints.porterAccept(bookingId));
+  }
+
+  /// The delivery this partner is running, or null when they are free.
+  Future<PartnerJob?> driverActiveJob() async {
+    final data = await _client.get(ApiEndpoints.porterDriverActive);
+    if (data == null) return null;
+    return PartnerJob.fromJson(data as Map<String, dynamic>);
+  }
+
+  /// Collects the parcel against the code the sender shows.
+  Future<void> driverPickUp(String bookingId, String otpCode) async {
+    await _client.post(
+      ApiEndpoints.porterDriverPickup(bookingId),
+      data: {'otpCode': otpCode},
+    );
+  }
+
+  Future<void> driverDeliver(String bookingId) async {
+    await _client.post(ApiEndpoints.porterDriverDeliver(bookingId));
+  }
 }

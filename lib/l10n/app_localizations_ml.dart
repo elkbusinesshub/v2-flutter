@@ -2165,6 +2165,9 @@ class AppLocalizationsMl extends AppLocalizations {
   String get marking => 'അടയാളപ്പെടുത്തുന്നു…';
 
   @override
+  String get sellerDrive => 'ഡ്രൈവ്';
+
+  @override
   String get myListings => 'എന്റെ ലിസ്റ്റിംഗുകൾ';
 
   @override

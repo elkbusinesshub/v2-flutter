@@ -2144,6 +2144,9 @@ class AppLocalizationsHi extends AppLocalizations {
   String get marking => 'चिह्नित हो रहा है…';
 
   @override
+  String get sellerDrive => 'ड्राइव';
+
+  @override
   String get myListings => 'मेरी लिस्टिंग';
 
   @override

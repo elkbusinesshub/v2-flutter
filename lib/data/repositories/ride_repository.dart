@@ -1,5 +1,6 @@
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../features/seller/cubit/partner_cubit.dart';
 import '../models/ride_models.dart';
 
 /// The taxi/rides vertical against the backend (`/rides/*`).
@@ -91,5 +92,32 @@ class RideRepository {
       data: {'stars': stars, 'tip': tip},
     );
     return RideBookingModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  // ─── the partner's side ─────────────────────────────────────────────────
+
+  /// Takes an offered trip. Fails with 409 when somebody accepted first.
+  Future<void> acceptRide(String bookingId) async {
+    await _client.post(ApiEndpoints.rideAccept(bookingId));
+  }
+
+  /// The trip this partner is driving, or null when they are free.
+  Future<PartnerJob?> driverActiveTrip() async {
+    final data = await _client.get(ApiEndpoints.rideDriverActive);
+    if (data == null) return null;
+    return PartnerJob.fromJson(data as Map<String, dynamic>);
+  }
+
+  /// Starts the trip with the code the rider shows — proof the driver is
+  /// actually at the pickup.
+  Future<void> driverStart(String bookingId, String otpCode) async {
+    await _client.post(
+      ApiEndpoints.rideDriverStart(bookingId),
+      data: {'otpCode': otpCode},
+    );
+  }
+
+  Future<void> driverComplete(String bookingId) async {
+    await _client.post(ApiEndpoints.rideDriverComplete(bookingId));
   }
 }

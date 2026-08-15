@@ -52,6 +52,10 @@ const _page = PorterPageModel(
 );
 
 class _FakePorterRepository implements PorterRepository {
+  /// The partner-side calls belong to the seller panel, not these cubits.
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+
   Object? error;
   Object? bookingError;
   Map<String, dynamic>? lastQuote;

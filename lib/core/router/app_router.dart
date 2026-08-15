@@ -6,6 +6,8 @@ import '../push/push_service.dart';
 import '../../data/repositories/marketplace_repository.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../data/repositories/booking_repository.dart';
+import '../api/dispatch_socket.dart';
+import '../api/token_storage.dart';
 import '../../data/repositories/dispatch_repository.dart';
 import '../../features/elkstay/shell/elkstay_shell.dart';
 import '../../features/elkrep/cubit/elkrep_cubit.dart';
@@ -15,6 +17,7 @@ import '../../features/elkclean/elkclean_shell.dart';
 import '../../data/repositories/locations_repository.dart';
 import '../../features/seller/cubit/seller_listings_cubit.dart';
 import '../../features/seller/cubit/seller_orders_cubit.dart';
+import '../../features/seller/cubit/partner_cubit.dart';
 import '../../features/seller/cubit/seller_business_cubit.dart';
 import '../../features/seller/seller_shell.dart';
 import '../../features/addresses/cubit/addresses_cubit.dart';
@@ -75,7 +78,6 @@ import '../../features/tracking/view/tracking_screen.dart';
 import '../../features/wallet/cubit/wallet_cubit.dart';
 import '../../features/wallet/view/wallet_screen.dart';
 import '../api/chat_socket.dart';
-import '../api/token_storage.dart';
 import '../l10n/locale_cubit.dart';
 import '../utils/app_preferences.dart';
 import '../widgets/main_shell.dart';
@@ -316,6 +318,14 @@ GoRouter buildAppRouter() {
             BlocProvider(
               create: (context) =>
                   SellerBusinessCubit(context.read<ProviderRepository>())..load(),
+            ),
+            BlocProvider(
+              create: (context) => PartnerCubit(
+                context.read<DispatchRepository>(),
+                context.read<RideRepository>(),
+                context.read<PorterRepository>(),
+                DispatchSocket(context.read<TokenStorage>()),
+              ),
             ),
           ],
           child: SellerShell(onBack: () => context.pop()),

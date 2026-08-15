@@ -96,6 +96,10 @@ class _FakeDispatchRepository implements DispatchRepository {
 }
 
 class _FakeRideRepository implements RideRepository {
+  /// The partner-side calls belong to the seller panel, not these cubits.
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+
   Object? error;
   List<RideTypeModel> rideTypes = [_auto, _economy];
   Map<String, dynamic>? lastBooking;

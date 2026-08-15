@@ -11,11 +11,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/theme/seller_colors.dart';
+import 'view/partner_screen.dart';
 import '../../l10n/app_localizations.dart';
 import '../../data/datasources/seller_data.dart';
 import '../account_switcher/account_switcher_sheet.dart';
 
-enum _Tab { home, listings, orders, wallet }
+enum _Tab { home, listings, drive, orders, wallet }
 
 class SellerShell extends StatefulWidget {
   const SellerShell({super.key, required this.onBack});
@@ -75,7 +76,12 @@ class _SellerShellState extends State<SellerShell> {
 
   Widget _buildAppBar() {
     final isHome = _tab == _Tab.home;
-    final titles = {_Tab.listings: l10n.myListings, _Tab.orders: l10n.orders, _Tab.wallet: l10n.navWallet};
+    final titles = {
+      _Tab.listings: l10n.myListings,
+      _Tab.drive: l10n.sellerDrive,
+      _Tab.orders: l10n.orders,
+      _Tab.wallet: l10n.navWallet,
+    };
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -208,6 +214,7 @@ class _SellerShellState extends State<SellerShell> {
           child: Row(children: [
             _navItem(_Tab.home, Icons.home_outlined, Icons.home_rounded, l10n.navHome),
             _navItem(_Tab.listings, Icons.grid_view_outlined, Icons.grid_view_rounded, l10n.listings),
+            _navItem(_Tab.drive, Icons.local_taxi_outlined, Icons.local_taxi_rounded, l10n.sellerDrive),
             // Centre elevated Post button
             SizedBox(
               width: 72,
@@ -274,6 +281,9 @@ class _SellerShellState extends State<SellerShell> {
               children: [
                 _homeScreen(),
                 _listingsScreen(),
+                // The partner persona: driving and delivering. Same account,
+                // different work from selling a listing.
+                const PartnerScreen(),
                 _ordersScreen(),
                 _walletScreen(),
               ],

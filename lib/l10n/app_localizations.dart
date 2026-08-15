@@ -4182,6 +4182,12 @@ abstract class AppLocalizations {
   /// **'Marking…'**
   String get marking;
 
+  /// No description provided for @sellerDrive.
+  ///
+  /// In en, this message translates to:
+  /// **'Drive'**
+  String get sellerDrive;
+
   /// No description provided for @myListings.
   ///
   /// In en, this message translates to:

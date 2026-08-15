@@ -2138,6 +2138,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get marking => 'Marking…';
 
   @override
+  String get sellerDrive => 'Drive';
+
+  @override
   String get myListings => 'My Listings';
 
   @override

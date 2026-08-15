@@ -2174,6 +2174,9 @@ class AppLocalizationsTa extends AppLocalizations {
   String get marking => 'குறிக்கப்படுகிறது…';
 
   @override
+  String get sellerDrive => 'ஓட்டு';
+
+  @override
   String get myListings => 'என் பட்டியல்கள்';
 
   @override

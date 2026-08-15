@@ -2,6 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:elk/core/errors/api_exception.dart';
 import 'package:elk/data/models/ride_models.dart';
+import 'package:elk/data/models/dispatch_models.dart';
+import 'package:elk/data/repositories/dispatch_repository.dart';
 import 'package:elk/data/repositories/ride_repository.dart';
 import 'package:elk/features/taxi/cubit/ride_booking_cubit.dart';
 
@@ -71,8 +73,31 @@ RideBookingModel _bookingWith({
       completedAt: completedAt,
     );
 
+/// Nobody on duty by default — the map is empty unless a test says otherwise.
+class _FakeDispatchRepository implements DispatchRepository {
+  _FakeDispatchRepository([this.vehicles = const []]);
+
+  final List<NearbyVehicleModel> vehicles;
+  Object? error;
+
+  @override
+  Future<List<NearbyVehicleModel>> nearby({
+    required DriverService service,
+    required double lat,
+    required double lng,
+    String? vehicleSlug,
+  }) async {
+    if (error != null) throw error!;
+    return vehicles;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
 class _FakeRideRepository implements RideRepository {
   Object? error;
+  List<RideTypeModel> rideTypes = [_auto, _economy];
   Map<String, dynamic>? lastBooking;
   String? lastOtp;
   Map<String, dynamic>? lastRating;
@@ -81,7 +106,7 @@ class _FakeRideRepository implements RideRepository {
   @override
   Future<List<RideTypeModel>> getRideTypes() async {
     if (error != null) throw error!;
-    return [_auto, _economy];
+    return rideTypes;
   }
 
   @override
@@ -102,6 +127,8 @@ class _FakeRideRepository implements RideRepository {
     required String pickupAddress,
     required String dropAddress,
     required String paymentMethod,
+    double? pickupLat,
+    double? pickupLng,
   }) async {
     lastBooking = {
       'rideTypeId': rideTypeId,
@@ -167,7 +194,7 @@ void main() {
 
   /// Drives a cubit to the point where a ride has been booked.
   Future<RideBookingCubit> bookedCubit() async {
-    final cubit = RideBookingCubit(repository);
+    final cubit = RideBookingCubit(repository, _FakeDispatchRepository());
     await cubit.loadOptions();
     await cubit.confirmBooking(pickupAddress: 'A', dropAddress: 'B');
     return cubit;
@@ -177,15 +204,58 @@ void main() {
 
   group('booking flow', () {
     test('loads options and preselects the first ride class', () async {
-      final cubit = RideBookingCubit(repository);
+      final cubit = RideBookingCubit(repository, _FakeDispatchRepository());
       await cubit.loadOptions();
       expect(cubit.state.optionsStatus, RideOptionsStatus.loaded);
       expect(cubit.state.selectedRideTypeId, 'auto');
       expect(cubit.state.estimate!.distanceKm, 8.2);
     });
 
+    test('shows the vehicles actually on duty nearby', () async {
+      final dispatch = _FakeDispatchRepository([
+        const NearbyVehicleModel(
+          vehicleSlug: 'auto',
+          emoji: '🛺',
+          lat: 12.9352,
+          lng: 77.6245,
+          distanceKm: 0.4,
+          etaMinutes: 4,
+        ),
+      ]);
+      final cubit = RideBookingCubit(repository, dispatch);
+
+      await cubit.loadNearbyVehicles(12.936, 77.625);
+
+      expect(cubit.state.nearbyVehicles.single.emoji, '🛺');
+    });
+
+    test('a failed nearby lookup empties the map instead of breaking it', () async {
+      // The rider can still book without seeing anybody; a thrown error here
+      // would take the whole screen down for a decoration.
+      final dispatch = _FakeDispatchRepository()..error = StateError('offline');
+      final cubit = RideBookingCubit(repository, dispatch);
+
+      await cubit.loadNearbyVehicles(12.936, 77.625);
+
+      expect(cubit.state.nearbyVehicles, isEmpty);
+    });
+
+    test('an empty catalogue loads rather than staying in loading', () async {
+      // The screen shows a spinner until the load finishes. If an empty
+      // catalogue left the status at `loading`, the taxi tab would appear to
+      // hang forever instead of saying there is nothing to book.
+      repository.rideTypes = [];
+      final cubit = RideBookingCubit(repository, _FakeDispatchRepository());
+
+      await cubit.loadOptions();
+
+      expect(cubit.state.optionsStatus, RideOptionsStatus.loaded);
+      expect(cubit.state.rideTypes, isEmpty);
+      expect(cubit.state.selectedRideTypeId, isNull);
+    });
+
     test('previewDriver stores the match without booking', () async {
-      final cubit = RideBookingCubit(repository);
+      final cubit = RideBookingCubit(repository, _FakeDispatchRepository());
       await cubit.loadOptions();
       final ok = await cubit.previewDriver();
       expect(ok, isTrue);
@@ -195,7 +265,7 @@ void main() {
     });
 
     test('confirmBooking sends the trip and stores code + OTP', () async {
-      final cubit = RideBookingCubit(repository);
+      final cubit = RideBookingCubit(repository, _FakeDispatchRepository());
       await cubit.loadOptions();
       cubit
         ..selectRideType('economy')
@@ -248,7 +318,7 @@ void main() {
     });
 
     test('surfaces backend failures on booking', () async {
-      final cubit = RideBookingCubit(repository);
+      final cubit = RideBookingCubit(repository, _FakeDispatchRepository());
       await cubit.loadOptions();
       repository.error = const ApiException(
         ApiErrorType.validation,
@@ -261,7 +331,7 @@ void main() {
     });
 
     test('lifecycle actions no-op without a booking', () async {
-      final cubit = RideBookingCubit(repository);
+      final cubit = RideBookingCubit(repository, _FakeDispatchRepository());
       expect(await cubit.startRide('1234'), isFalse);
       expect(await cubit.completeRide(), isFalse);
       expect(await cubit.cancelRide(), isFalse);

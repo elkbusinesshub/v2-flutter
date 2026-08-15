@@ -795,6 +795,9 @@ class AppLocalizationsTa extends AppLocalizations {
   String get taxiBookARide => 'பயணத்தை முன்பதிவு செய்';
 
   @override
+  String get taxiNoRideTypes => 'தற்போது பயண வகைகள் எதுவும் இல்லை.';
+
+  @override
   String get taxiChooseRide => 'உங்கள் பயணத்தைத் தேர்ந்தெடுங்கள்';
 
   @override

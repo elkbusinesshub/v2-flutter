@@ -52,6 +52,14 @@ class ApiEndpoints {
   static String orderCancel(String id) => '/orders/$id/cancel';
   static String orderChat(String id) => '/orders/$id/chat';
 
+  // ── dispatch (drivers & delivery partners) ────────────────────────────
+  static const String dispatchProfiles = '/dispatch/me';
+  static const String dispatchRegister = '/dispatch/register';
+  static const String dispatchOnline = '/dispatch/online';
+  static const String dispatchLocation = '/dispatch/location';
+  static const String dispatchNearbyRides = '/dispatch/nearby/rides';
+  static const String dispatchNearbyPorter = '/dispatch/nearby/porter';
+
   // ── elkclean ──────────────────────────────────────────────────────────
   static const String elkCleanHome = '/elkclean/home';
   static const String elkCleanCategories = '/elkclean/categories';
@@ -92,6 +100,10 @@ class ApiEndpoints {
   static String rideBooking(String id) => '/rides/bookings/$id';
   static String rideStart(String id) => '/rides/bookings/$id/start';
   static String rideComplete(String id) => '/rides/bookings/$id/complete';
+  static String rideAccept(String id) => '/rides/bookings/$id/accept';
+  static String rideDriverStart(String id) => '/rides/bookings/$id/driver-start';
+  static String rideDriverComplete(String id) => '/rides/bookings/$id/driver-complete';
+  static const String rideDriverActive = '/rides/driver/active';
   static String rideCancel(String id) => '/rides/bookings/$id/cancel';
   static String rideRate(String id) => '/rides/bookings/$id/rate';
 
@@ -99,6 +111,10 @@ class ApiEndpoints {
   static const String porterOptions = '/porter/options';
   static const String porterQuote = '/porter/quote';
   static const String porterBookings = '/porter/bookings';
+  static String porterAccept(String id) => '/porter/bookings/$id/accept';
+  static String porterDriverPickup(String id) => '/porter/bookings/$id/driver-pickup';
+  static String porterDriverDeliver(String id) => '/porter/bookings/$id/driver-deliver';
+  static const String porterDriverActive = '/porter/driver/active';
   static String porterCancel(String id) => '/porter/bookings/$id/cancel';
 
   // ── provider ──────────────────────────────────────────────────────────

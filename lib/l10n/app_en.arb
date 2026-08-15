@@ -274,6 +274,7 @@
   "rideBlurbPremiumShort": "Extra legroom, top-rated drivers",
   "taxiSignInPrompt": "Sign in with your mobile number to book a ride.",
   "taxiBookARide": "Book a Ride",
+  "taxiNoRideTypes": "No ride classes are available right now.",
   "taxiChooseRide": "Choose your ride",
   "taxiPickup": "PICKUP",
   "taxiDropoff": "DROP-OFF",

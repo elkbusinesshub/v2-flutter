@@ -16,6 +16,7 @@ import 'data/repositories/locations_repository.dart';
 import 'data/repositories/marketplace_repository.dart';
 import 'data/repositories/places_repository.dart';
 import 'data/repositories/booking_repository.dart';
+import 'data/repositories/dispatch_repository.dart';
 import 'data/repositories/chat_repository.dart';
 import 'data/repositories/home_repository.dart';
 import 'data/repositories/language_repository.dart';
@@ -69,6 +70,7 @@ class _AppState extends State<App> {
         RepositoryProvider(create: (_) => LanguageRepository(apiClient)),
         RepositoryProvider(create: (_) => HomeRepository(apiClient)),
         RepositoryProvider(create: (_) => BookingRepository(apiClient)),
+        RepositoryProvider(create: (_) => DispatchRepository(apiClient)),
         RepositoryProvider(create: (_) => PaymentRepository(apiClient)),
         RepositoryProvider(create: (_) => RideRepository(apiClient)),
         RepositoryProvider(create: (_) => TrackingRepository(apiClient)),

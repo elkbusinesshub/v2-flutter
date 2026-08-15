@@ -520,8 +520,6 @@ class _Header extends StatelessWidget {
             letterSpacing: -0.3,
           ),
         ),
-        const Spacer(),
-        SvgPicture.asset('assets/icons/elk_logo.svg', height: 23),
       ]),
     );
   }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/widgets/state_views.dart';
@@ -199,8 +198,6 @@ class _State extends State<MyBookingsScreen> {
             Text(AppLocalizations.of(context).myBookingsTitle, style: GoogleFonts.nunito(
               fontSize: 19, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.3,
             )),
-            const Spacer(),
-            SvgPicture.asset('assets/icons/elk_logo.svg', height: 23),
           ]),
         ),
         // tabs
@@ -334,8 +331,6 @@ class _State extends State<MyBookingsScreen> {
                 Text(l10n.bookingDetailsTitle, style: GoogleFonts.nunito(
                   fontSize: 19, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.3,
                 )),
-                const Spacer(),
-                SvgPicture.asset('assets/icons/elk_logo.svg', height: 23),
               ]),
             ),
             const SizedBox(height: 14),

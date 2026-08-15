@@ -185,8 +185,6 @@ class _RentalScreenState extends State<RentalScreen> {
           ),
           const SizedBox(width: 14),
           Text(l10n.svcCarRental, style: GoogleFonts.nunito(fontSize: 19, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.3)),
-          const Spacer(),
-          SvgPicture.asset('assets/icons/elk_logo.svg', height: 24),
         ]),
       ),
     );

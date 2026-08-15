@@ -780,6 +780,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get taxiBookARide => 'Book a Ride';
 
   @override
+  String get taxiNoRideTypes => 'No ride classes are available right now.';
+
+  @override
   String get taxiChooseRide => 'Choose your ride';
 
   @override

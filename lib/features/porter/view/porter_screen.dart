@@ -211,24 +211,7 @@ class _PorterScreenState extends State<PorterScreen> {
           colors: [_dk7, _dk9],
         ),
       ),
-      child: Column(children: [
-        // Status bar row
-        SizedBox(
-          height: 46,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text('15:59', style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
-              Row(children: [
-                const Icon(Icons.signal_cellular_alt, color: Colors.white, size: 17),
-                const SizedBox(width: 7),
-                const Icon(Icons.wifi, color: Colors.white, size: 16),
-                const SizedBox(width: 7),
-                const Icon(Icons.battery_full, color: Colors.white, size: 17),
-              ]),
-            ]),
-          ),
-        ),
+      child: Column(children: [        
         // App bar
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 4, 18, 16),
@@ -248,9 +231,6 @@ class _PorterScreenState extends State<PorterScreen> {
             ),
             const SizedBox(width: 14),
             Text(l10n.porterLogistics, style: GoogleFonts.nunito(fontSize: 19, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.3)),
-            const Spacer(),
-            // ELK Logo
-            SvgPicture.asset('assets/icons/elk_logo.svg', height: 24),
           ]),
         ),
       ]),

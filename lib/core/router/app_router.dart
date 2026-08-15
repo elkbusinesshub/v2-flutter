@@ -6,6 +6,7 @@ import '../push/push_service.dart';
 import '../../data/repositories/marketplace_repository.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../data/repositories/booking_repository.dart';
+import '../../data/repositories/dispatch_repository.dart';
 import '../../features/elkstay/shell/elkstay_shell.dart';
 import '../../features/elkrep/cubit/elkrep_cubit.dart';
 import '../../features/elkrep/elkrep_shell.dart';
@@ -343,7 +344,10 @@ GoRouter buildAppRouter() {
       GoRoute(
         path: AppRoutes.taxi,
         builder: (context, state) => BlocProvider(
-          create: (context) => RideBookingCubit(context.read<RideRepository>()),
+          create: (context) => RideBookingCubit(
+            context.read<RideRepository>(),
+            context.read<DispatchRepository>(),
+          ),
           child: const RideBookingFlow(),
         ),
       ),

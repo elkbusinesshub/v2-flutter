@@ -1584,6 +1584,12 @@ abstract class AppLocalizations {
   /// **'Book a Ride'**
   String get taxiBookARide;
 
+  /// No description provided for @taxiNoRideTypes.
+  ///
+  /// In en, this message translates to:
+  /// **'No ride classes are available right now.'**
+  String get taxiNoRideTypes;
+
   /// No description provided for @taxiChooseRide.
   ///
   /// In en, this message translates to:

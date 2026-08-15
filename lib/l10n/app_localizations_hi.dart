@@ -784,6 +784,9 @@ class AppLocalizationsHi extends AppLocalizations {
   String get taxiBookARide => 'सवारी बुक करें';
 
   @override
+  String get taxiNoRideTypes => 'अभी कोई राइड श्रेणी उपलब्ध नहीं है।';
+
+  @override
   String get taxiChooseRide => 'अपनी सवारी चुनें';
 
   @override

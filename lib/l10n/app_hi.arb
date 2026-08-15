@@ -259,6 +259,7 @@
   "rideBlurbPremiumShort": "ज़्यादा जगह, बेहतरीन ड्राइवर",
   "taxiSignInPrompt": "सवारी बुक करने के लिए मोबाइल नंबर से साइन इन करें।",
   "taxiBookARide": "सवारी बुक करें",
+  "taxiNoRideTypes": "अभी कोई राइड श्रेणी उपलब्ध नहीं है।",
   "taxiChooseRide": "अपनी सवारी चुनें",
   "taxiPickup": "पिकअप",
   "taxiDropoff": "ड्रॉप-ऑफ़",

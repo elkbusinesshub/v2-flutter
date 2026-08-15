@@ -2,7 +2,9 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/errors/api_exception.dart';
+import '../../../data/models/dispatch_models.dart';
 import '../../../data/models/ride_models.dart';
+import '../../../data/repositories/dispatch_repository.dart';
 import '../../../data/repositories/ride_repository.dart';
 
 part 'ride_booking_state.dart';
@@ -13,9 +15,11 @@ part 'ride_booking_state.dart';
 ///
 /// Screen sequencing, timers and the card form stay in the flow widget.
 class RideBookingCubit extends Cubit<RideBookingState> {
-  RideBookingCubit(this._repository) : super(const RideBookingState());
+  RideBookingCubit(this._repository, this._dispatch)
+      : super(const RideBookingState());
 
   final RideRepository _repository;
+  final DispatchRepository _dispatch;
 
   Future<void> loadOptions() async {
     emit(state.copyWith(optionsStatus: RideOptionsStatus.loading));
@@ -37,6 +41,23 @@ class RideBookingCubit extends Cubit<RideBookingState> {
         optionsStatus: RideOptionsStatus.error,
         optionsError: friendlyErrorMessage(e),
       ));
+    }
+  }
+
+  /// Autos, cars and bikes actually on duty around [lat]/[lng].
+  ///
+  /// Failure is swallowed on purpose: an empty map is a worse outcome than a
+  /// map with no vehicles on it, and the rider can still book either way.
+  Future<void> loadNearbyVehicles(double lat, double lng) async {
+    try {
+      final vehicles = await _dispatch.nearby(
+        service: DriverService.ride,
+        lat: lat,
+        lng: lng,
+      );
+      emit(state.copyWith(nearbyVehicles: vehicles));
+    } catch (_) {
+      emit(state.copyWith(nearbyVehicles: const []));
     }
   }
 
@@ -64,11 +85,17 @@ class RideBookingCubit extends Cubit<RideBookingState> {
     }
   }
 
-  /// Creates the ride. On success [RideBookingState.booking] carries the
-  /// assigned driver, the pickup OTP and the tracking code.
+  /// Opens the search.
+  ///
+  /// The trip comes back `searching` with no driver: it has gone out to the
+  /// partners on duty nearby, and belongs to whoever accepts it first. The
+  /// pickup pin is what dispatch searches around, so a booking made without
+  /// one is answered immediately with `no_drivers` rather than hanging.
   Future<bool> confirmBooking({
     required String pickupAddress,
     required String dropAddress,
+    double? pickupLat,
+    double? pickupLng,
   }) async {
     final rideTypeId = state.selectedRideTypeId;
     if (rideTypeId == null) return false;
@@ -79,6 +106,8 @@ class RideBookingCubit extends Cubit<RideBookingState> {
         pickupAddress: pickupAddress,
         dropAddress: dropAddress,
         paymentMethod: state.paymentMethod,
+        pickupLat: pickupLat,
+        pickupLng: pickupLng,
       );
       emit(state.copyWith(isSubmitting: false, booking: booking));
       return true;

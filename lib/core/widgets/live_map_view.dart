@@ -7,6 +7,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../data/models/place_models.dart';
 import '../../data/repositories/places_repository.dart';
 import '../theme/app_colors.dart';
+import 'emoji_marker.dart';
 
 /// What a point on the map represents. Decides its pin colour.
 enum MapPointKind {
@@ -30,6 +31,7 @@ class MapPoint {
     required this.lng,
     required this.kind,
     this.label,
+    this.emoji,
   });
 
   final double lat;
@@ -38,6 +40,10 @@ class MapPoint {
 
   /// Shown in the marker's info window when tapped.
   final String? label;
+
+  /// Drawn instead of a coloured pin when set — a vehicle's own glyph, so a
+  /// rider can tell an auto from a car without tapping anything.
+  final String? emoji;
 
   LatLng get latLng => LatLng(lat, lng);
 
@@ -96,10 +102,16 @@ class _LiveMapViewState extends State<LiveMapView> {
   GoogleMapController? _controller;
   List<LatLng> _routePoints = const [];
 
+  /// Rasterised emoji pins, by glyph. Painting one is asynchronous, so the
+  /// markers appear on the frame after the points change rather than blocking
+  /// the map's first paint.
+  Map<String, BitmapDescriptor> _emojiIcons = const {};
+
   @override
   void initState() {
     super.initState();
     _loadRoute();
+    _loadEmojiIcons();
   }
 
   @override
@@ -108,6 +120,7 @@ class _LiveMapViewState extends State<LiveMapView> {
     if (!_samePoints(oldWidget.points, widget.points) ||
         oldWidget.showRoute != widget.showRoute) {
       _loadRoute();
+      _loadEmojiIcons();
       _fitCamera();
     }
   }
@@ -124,6 +137,26 @@ class _LiveMapViewState extends State<LiveMapView> {
       if (a[i].lat != b[i].lat || a[i].lng != b[i].lng) return false;
     }
     return true;
+  }
+
+  /// Paints a chip for each distinct glyph on the map.
+  Future<void> _loadEmojiIcons() async {
+    final glyphs = {
+      for (final p in widget.points)
+        if (p.emoji != null) p.emoji!,
+    };
+    if (glyphs.isEmpty) {
+      if (_emojiIcons.isNotEmpty) setState(() => _emojiIcons = const {});
+      return;
+    }
+    if (glyphs.every(_emojiIcons.containsKey)) return;
+
+    final icons = <String, BitmapDescriptor>{};
+    for (final glyph in glyphs) {
+      icons[glyph] = await EmojiMarker.of(glyph);
+    }
+    if (!mounted) return;
+    setState(() => _emojiIcons = icons);
   }
 
   Future<void> _loadRoute() async {
@@ -210,7 +243,12 @@ class _LiveMapViewState extends State<LiveMapView> {
           Marker(
             markerId: MarkerId('${point.kind.name}:${point.lat},${point.lng}'),
             position: point.latLng,
-            icon: BitmapDescriptor.defaultMarkerWithHue(point._hue),
+            // The glyph if one is set and painted, else the coloured pin. A
+            // vehicle whose chip has not finished rasterising shows as a pin
+            // for one frame rather than vanishing.
+            icon: _emojiIcons[point.emoji] ??
+                BitmapDescriptor.defaultMarkerWithHue(point._hue),
+            anchor: point.emoji == null ? const Offset(0.5, 1) : const Offset(0.5, 0.5),
             infoWindow:
                 point.label == null ? InfoWindow.noText : InfoWindow(title: point.label),
           ),

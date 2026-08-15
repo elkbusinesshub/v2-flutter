@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/widgets/state_views.dart';
+import '../../../data/models/dispatch_models.dart';
 import '../../../data/models/ride_models.dart';
 import '../cubit/ride_booking_cubit.dart';
 
@@ -150,6 +151,16 @@ class _RideBookingFlowState extends State<RideBookingFlow>
     _cubit.loadOptions();
   }
 
+  /// Asks who is on duty around the pickup, for the vehicle pins.
+  ///
+  /// Only meaningful once there is a pickup to look around; before that there
+  /// is no centre to search from.
+  void _refreshNearby() {
+    final lat = _pickup.lat, lng = _pickup.lng;
+    if (lat == null || lng == null) return;
+    _cubit.loadNearbyVehicles(lat, lng);
+  }
+
   /// Best-effort: names the device's position as the pickup so the common case
   /// needs no typing. Silent on failure — the user picks manually, which beats
   /// showing an address we did not measure.
@@ -163,6 +174,7 @@ class _RideBookingFlowState extends State<RideBookingFlow>
             lat: place.lat,
             lng: place.lng,
           ));
+      _refreshNearby();
     } catch (_) {
       // No permission, no signal, or guest — leave it for the picker.
     }
@@ -235,6 +247,8 @@ class _RideBookingFlowState extends State<RideBookingFlow>
       return false;
     }
     final ok = await _cubit.confirmBooking(
+      pickupLat: _pickup.lat,
+      pickupLng: _pickup.lng,
       pickupAddress: _pickup.address,
       dropAddress: _dropoff.address,
     );
@@ -294,6 +308,7 @@ class _RideBookingFlowState extends State<RideBookingFlow>
     setState(() {
       if (isPickup) {
         _pickup = point;
+        _refreshNearby();
       } else {
         _dropoff = point;
       }
@@ -416,6 +431,17 @@ class _RideBookingFlowState extends State<RideBookingFlow>
         ),
       );
     }
+    // A catalogue that loaded and came back empty is not still loading. Left
+    // as a spinner it turns "no ride classes are configured" into a screen
+    // that appears to hang forever.
+    if (state.optionsStatus == RideOptionsStatus.loaded && state.rideTypes.isEmpty) {
+      return SafeArea(
+        child: ErrorRetryView(
+          message: l10n.taxiNoRideTypes,
+          onRetry: _cubit.loadOptions,
+        ),
+      );
+    }
     final r = _ride;
     if (r == null) return const LoadingView();
     return Column(children: [
@@ -425,6 +451,8 @@ class _RideBookingFlowState extends State<RideBookingFlow>
         kind: _MapKind.book,
         pickup: _pickup,
         dropoff: _dropoff,
+        // Real partners on duty, drawn as their vehicle's emoji.
+        nearby: state.nearbyVehicles,
         chip: '$_routeEta min · ${_distanceKm.toStringAsFixed(1)} km',
         locateBtn: true,
       ),
@@ -1468,6 +1496,7 @@ class _RideMap extends StatelessWidget {
     this.locateBtn = false,
     this.radarCtrl,
     this.emoji = '🚗',
+    this.nearby = const [],
   });
 
   final double height;
@@ -1486,6 +1515,9 @@ class _RideMap extends StatelessWidget {
   /// Vehicle glyph for the radar ping while a driver is being found.
   final String emoji;
 
+  /// Partners on duty nearby, each drawn as its own vehicle emoji.
+  final List<NearbyVehicleModel> nearby;
+
   @override
   Widget build(BuildContext context) {
     // The drop is hidden until the ride is actually going there: while a driver
@@ -1494,6 +1526,17 @@ class _RideMap extends StatelessWidget {
     final points = [
       ?pickup.toMapPoint(MapPointKind.pickup),
       if (showDrop) ?dropoff.toMapPoint(MapPointKind.drop),
+      // Only where the rider is choosing a ride: once one is on the way, the
+      // other traffic is noise around the car that matters.
+      if (kind == _MapKind.book)
+        for (final v in nearby)
+          MapPoint(
+            lat: v.lat,
+            lng: v.lng,
+            kind: MapPointKind.vehicle,
+            emoji: v.emoji,
+            label: '${v.etaMinutes} min away',
+          ),
     ];
 
     return SizedBox(

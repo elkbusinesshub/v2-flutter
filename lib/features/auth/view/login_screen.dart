@@ -6,7 +6,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/widgets/buttons.dart';
-import '../../../core/widgets/elk_logo.dart';
 import '../../../l10n/app_localizations.dart';
 import '../bloc/auth_bloc.dart';
 
@@ -70,8 +69,6 @@ class _PhoneEntryViewState extends State<_PhoneEntryView> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const ElkLogo(fontSize: 30),
-              const SizedBox(height: 32),
               Text(
                 l10n.authWelcomeBack,
                 style: const TextStyle(

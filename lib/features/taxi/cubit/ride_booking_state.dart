@@ -6,6 +6,7 @@ class RideBookingState extends Equatable {
   const RideBookingState({
     this.optionsStatus = RideOptionsStatus.initial,
     this.rideTypes = const [],
+    this.nearbyVehicles = const [],
     this.estimate,
     this.optionsError,
     this.selectedRideTypeId,
@@ -20,6 +21,10 @@ class RideBookingState extends Equatable {
 
   final RideOptionsStatus optionsStatus;
   final List<RideTypeModel> rideTypes;
+
+  /// Partners on duty near the pickup, as map pins. Empty means nobody is
+  /// out there — which the map shows honestly rather than inventing cars.
+  final List<NearbyVehicleModel> nearbyVehicles;
   final TaxiLocationModel? estimate;
   final String? optionsError;
 
@@ -47,6 +52,7 @@ class RideBookingState extends Equatable {
   RideBookingState copyWith({
     RideOptionsStatus? optionsStatus,
     List<RideTypeModel>? rideTypes,
+    List<NearbyVehicleModel>? nearbyVehicles,
     TaxiLocationModel? estimate,
     String? optionsError,
     String? selectedRideTypeId,
@@ -61,6 +67,7 @@ class RideBookingState extends Equatable {
     return RideBookingState(
       optionsStatus: optionsStatus ?? this.optionsStatus,
       rideTypes: rideTypes ?? this.rideTypes,
+      nearbyVehicles: nearbyVehicles ?? this.nearbyVehicles,
       estimate: estimate ?? this.estimate,
       optionsError: optionsError,
       selectedRideTypeId: selectedRideTypeId ?? this.selectedRideTypeId,
@@ -78,6 +85,7 @@ class RideBookingState extends Equatable {
   List<Object?> get props => [
         optionsStatus,
         rideTypes,
+        nearbyVehicles,
         estimate,
         optionsError,
         selectedRideTypeId,

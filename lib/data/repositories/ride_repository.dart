@@ -7,8 +7,8 @@ import '../models/ride_models.dart';
 /// Backend contract:
 ///  * `GET  /rides/types` → ride classes with fares and ETAs
 ///  * `GET  /rides/current-estimate` → static route estimate for the header
-///  * `POST /rides/request` → driver-match preview (creates nothing)
-///  * `POST /rides/bookings` → booking with an assigned driver + pickup OTP
+///  * `POST /rides/request` → the class's ETA (creates nothing)
+///  * `POST /rides/bookings` → opens a search; whoever accepts first drives it
 ///  * `POST /rides/bookings/:id/{start,complete,cancel,rate}` → lifecycle
 class RideRepository {
   RideRepository(this._client);
@@ -40,12 +40,18 @@ class RideRepository {
     required String pickupAddress,
     required String dropAddress,
     required String paymentMethod,
+    double? pickupLat,
+    double? pickupLng,
   }) async {
     final data = await _client.post(ApiEndpoints.rideBookings, data: {
       'rideTypeId': rideTypeId,
       'pickupAddress': pickupAddress,
       'dropAddress': dropAddress,
       'paymentMethod': paymentMethod,
+      // Dispatch searches around this. Without it the backend has nowhere to
+      // look and answers "no drivers" straight away rather than waiting.
+      'pickupLat': ?pickupLat,
+      'pickupLng': ?pickupLng,
     });
     return RideBookingModel.fromJson(data as Map<String, dynamic>);
   }

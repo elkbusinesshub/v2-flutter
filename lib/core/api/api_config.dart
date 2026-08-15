@@ -16,7 +16,7 @@
 ///
 /// The API moved off port 3000 on 2026-08-13: `flutter run -d chrome` defaults
 /// the web app to 3000, and the two cannot share it. The backend's `PORT` in
-/// `elk-backend-v2/.env` must match the port here.
+/// `elk-backend-v2/.env` must match the port here — it is 3001.
 class ApiConfig {
   ApiConfig._();
 

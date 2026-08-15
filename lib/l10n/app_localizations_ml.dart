@@ -789,6 +789,9 @@ class AppLocalizationsMl extends AppLocalizations {
   String get taxiBookARide => 'യാത്ര ബുക്ക് ചെയ്യുക';
 
   @override
+  String get taxiNoRideTypes => 'ഇപ്പോൾ യാത്രാ വിഭാഗങ്ങളൊന്നും ലഭ്യമല്ല.';
+
+  @override
   String get taxiChooseRide => 'നിങ്ങളുടെ യാത്ര തിരഞ്ഞെടുക്കുക';
 
   @override

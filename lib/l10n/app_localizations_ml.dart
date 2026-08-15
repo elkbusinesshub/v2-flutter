@@ -868,6 +868,10 @@ class AppLocalizationsMl extends AppLocalizations {
   String get fareBookingFee => 'ബുക്കിംഗ് ഫീസ്';
 
   @override
+  String get taxiNoDriversNearby =>
+      'ഇപ്പോൾ അടുത്ത് ഡ്രൈവർമാരാരും ഡ്യൂട്ടിയിലില്ല.';
+
+  @override
   String get assigningDriver => 'ഡ്രൈവറെ നിയോഗിക്കുന്നു…';
 
   @override

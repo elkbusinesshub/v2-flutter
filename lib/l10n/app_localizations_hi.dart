@@ -863,6 +863,9 @@ class AppLocalizationsHi extends AppLocalizations {
   String get fareBookingFee => 'बुकिंग शुल्क';
 
   @override
+  String get taxiNoDriversNearby => 'अभी आपके पास कोई ड्राइवर उपलब्ध नहीं है।';
+
+  @override
   String get assigningDriver => 'ड्राइवर तय किया जा रहा है…';
 
   @override

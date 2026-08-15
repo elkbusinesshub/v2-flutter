@@ -8,7 +8,6 @@ import '../models/ride_models.dart';
 /// Backend contract:
 ///  * `GET  /rides/types` → ride classes with fares and ETAs
 ///  * `GET  /rides/current-estimate` → static route estimate for the header
-///  * `POST /rides/request` → the class's ETA (creates nothing)
 ///  * `POST /rides/bookings` → opens a search; whoever accepts first drives it
 ///  * `POST /rides/bookings/:id/{start,complete,cancel,rate}` → lifecycle
 class RideRepository {
@@ -26,14 +25,6 @@ class RideRepository {
   Future<TaxiLocationModel> getCurrentTrip() async {
     final data = await _client.get(ApiEndpoints.rideCurrentEstimate);
     return TaxiLocationModel.fromJson(data as Map<String, dynamic>);
-  }
-
-  Future<DriverMatchModel> findDrivers(String rideTypeId) async {
-    final data = await _client.post(
-      ApiEndpoints.rideRequest,
-      data: {'rideTypeId': rideTypeId},
-    );
-    return DriverMatchModel.fromJson(data as Map<String, dynamic>);
   }
 
   Future<RideBookingModel> createBooking({

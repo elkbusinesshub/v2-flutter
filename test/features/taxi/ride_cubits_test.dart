@@ -37,13 +37,6 @@ const _estimate = TaxiLocationModel(
   distanceKm: 8.2,
 );
 
-const _match = DriverMatchModel(
-  driverName: 'Yusuf Khan',
-  vehicle: 'Toyota Corolla · White',
-  plateNumber: 'DXB 4471',
-  etaMinutes: 4,
-);
-
 RideBookingModel _bookingWith({
   String status = 'confirmed',
   String? otp = '8264',
@@ -117,12 +110,6 @@ class _FakeRideRepository implements RideRepository {
   Future<TaxiLocationModel> getCurrentTrip() async {
     if (error != null) throw error!;
     return _estimate;
-  }
-
-  @override
-  Future<DriverMatchModel> findDrivers(String rideTypeId) async {
-    if (error != null) throw error!;
-    return _match;
   }
 
   @override
@@ -256,16 +243,6 @@ void main() {
       expect(cubit.state.optionsStatus, RideOptionsStatus.loaded);
       expect(cubit.state.rideTypes, isEmpty);
       expect(cubit.state.selectedRideTypeId, isNull);
-    });
-
-    test('previewDriver stores the match without booking', () async {
-      final cubit = RideBookingCubit(repository, _FakeDispatchRepository());
-      await cubit.loadOptions();
-      final ok = await cubit.previewDriver();
-      expect(ok, isTrue);
-      expect(cubit.state.driverMatch, _match);
-      expect(cubit.state.booking, isNull);
-      expect(cubit.state.driverName, 'Yusuf Khan');
     });
 
     test('confirmBooking sends the trip and stores code + OTP', () async {

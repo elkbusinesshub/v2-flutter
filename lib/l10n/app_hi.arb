@@ -285,6 +285,7 @@
   "chooseDropoffLocation": "ड्रॉप-ऑफ़ स्थान चुनें",
   "fareBase": "आधार किराया",
   "fareBookingFee": "बुकिंग शुल्क",
+  "taxiNoDriversNearby": "अभी आपके पास कोई ड्राइवर उपलब्ध नहीं है।",
   "assigningDriver": "ड्राइवर तय किया जा रहा है…",
   "detailsOnTheWay": "विवरण आ रहा है",
   "couldNotBookRide": "सवारी बुक नहीं हो सकी।",

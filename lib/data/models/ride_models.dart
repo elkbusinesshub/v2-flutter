@@ -65,29 +65,6 @@ class TaxiLocationModel {
       );
 }
 
-/// Driver-match preview (`POST /rides/request`) — no booking is created.
-class DriverMatchModel {
-  const DriverMatchModel({
-    required this.driverName,
-    required this.vehicle,
-    required this.plateNumber,
-    required this.etaMinutes,
-  });
-
-  final String driverName;
-  final String vehicle;
-  final String plateNumber;
-  final int etaMinutes;
-
-  factory DriverMatchModel.fromJson(Map<String, dynamic> json) =>
-      DriverMatchModel(
-        driverName: json['driverName'] as String,
-        vehicle: json['vehicle'] as String,
-        plateNumber: json['plateNumber'] as String,
-        etaMinutes: json['etaMinutes'] as int,
-      );
-}
-
 /// A ride booking through its lifecycle: assigned → started → completed.
 class RideBookingModel {
   const RideBookingModel({
@@ -99,9 +76,9 @@ class RideBookingModel {
     required this.dropAddress,
     required this.distanceKm,
     required this.etaMinutes,
-    required this.driverName,
-    required this.vehicle,
-    required this.plateNumber,
+    this.driverName,
+    this.vehicle,
+    this.plateNumber,
     required this.fare,
     required this.paymentMethod,
     this.otpCode,
@@ -117,16 +94,19 @@ class RideBookingModel {
   /// Tracking code shown on the receipt, e.g. `ELK-7QK2M9P`.
   final String code;
 
-  /// `assigned | started | completed | cancelled`
+  /// `searching | no_drivers | confirmed | in_progress | completed | cancelled`
   final String status;
   final RideTypeModel rideType;
   final String pickupAddress;
   final String dropAddress;
   final double distanceKm;
   final int etaMinutes;
-  final String driverName;
-  final String vehicle;
-  final String plateNumber;
+  /// Null until a partner accepts the trip — a booking opens with nobody
+  /// assigned, and the screens say "assigning driver" rather than inventing
+  /// somebody.
+  final String? driverName;
+  final String? vehicle;
+  final String? plateNumber;
 
   /// Pickup OTP the rider hands to the driver — null once the trip starts.
   final String? otpCode;
@@ -145,7 +125,8 @@ class RideBookingModel {
   double get totalPaid => fare + tipAmount;
 
   factory RideBookingModel.fromJson(Map<String, dynamic> json) {
-    final driver = json['driver'] as Map<String, dynamic>;
+    // Absent while the trip is still out on offer.
+    final driver = json['driver'] as Map<String, dynamic>?;
     final breakdown = json['breakdown'] as Map<String, dynamic>;
     return RideBookingModel(
       id: json['id'] as String,
@@ -156,9 +137,9 @@ class RideBookingModel {
       dropAddress: json['dropAddress'] as String,
       distanceKm: (json['distanceKm'] as num).toDouble(),
       etaMinutes: json['etaMinutes'] as int,
-      driverName: driver['name'] as String,
-      vehicle: driver['vehicle'] as String,
-      plateNumber: driver['plateNumber'] as String,
+      driverName: driver?['name'] as String?,
+      vehicle: driver?['vehicle'] as String?,
+      plateNumber: driver?['plateNumber'] as String?,
       otpCode: json['otpCode'] as String?,
       fare: (breakdown['totalAmount'] as num).toDouble(),
       cancellationFee: (json['cancellationFee'] as num?)?.toDouble() ?? 0,

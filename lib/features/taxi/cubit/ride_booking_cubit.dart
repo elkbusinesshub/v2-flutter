@@ -66,16 +66,24 @@ class RideBookingCubit extends Cubit<RideBookingState> {
   void selectPaymentMethod(String method) =>
       emit(state.copyWith(paymentMethod: method));
 
-  /// Driver-match preview shown on the "finding a driver" screen. Nothing is
-  /// booked yet — [confirmBooking] assigns the real driver.
-  Future<bool> previewDriver() async {
-    final rideTypeId = state.selectedRideTypeId;
-    if (rideTypeId == null) return false;
+  /// Checks somebody is actually out there before taking the rider's money.
+  ///
+  /// No driver is named: under real dispatch nobody is assigned until a
+  /// partner accepts the trip, and naming one here would be a promise the
+  /// dispatch cannot keep. This only answers "is there anyone to ask".
+  Future<bool> checkAvailability(double lat, double lng) async {
+    final rideType = state.selectedRideType;
+    if (rideType == null) return false;
     emit(state.copyWith(isSearching: true, actionError: null));
     try {
-      final match = await _repository.findDrivers(rideTypeId);
-      emit(state.copyWith(isSearching: false, driverMatch: match));
-      return true;
+      final vehicles = await _dispatch.nearby(
+        service: DriverService.ride,
+        lat: lat,
+        lng: lng,
+        vehicleSlug: rideType.id,
+      );
+      emit(state.copyWith(isSearching: false, nearbyVehicles: vehicles));
+      return vehicles.isNotEmpty;
     } catch (e) {
       emit(state.copyWith(
         isSearching: false,

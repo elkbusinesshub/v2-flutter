@@ -1740,6 +1740,12 @@ abstract class AppLocalizations {
   /// **'Booking fee'**
   String get fareBookingFee;
 
+  /// No description provided for @taxiNoDriversNearby.
+  ///
+  /// In en, this message translates to:
+  /// **'No drivers are on duty near you right now.'**
+  String get taxiNoDriversNearby;
+
   /// No description provided for @assigningDriver.
   ///
   /// In en, this message translates to:

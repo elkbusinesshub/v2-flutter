@@ -300,6 +300,7 @@
   "chooseDropoffLocation": "Choose drop-off location",
   "fareBase": "Base fare",
   "fareBookingFee": "Booking fee",
+  "taxiNoDriversNearby": "No drivers are on duty near you right now.",
   "assigningDriver": "Assigning driver…",
   "detailsOnTheWay": "Details on the way",
   "couldNotBookRide": "Could not book the ride.",

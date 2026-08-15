@@ -198,11 +198,26 @@ class _RideBookingFlowState extends State<RideBookingFlow>
     _etaTimer?.cancel();
     setState(() => _screen = i.clamp(0, 10));
 
-    // 1 = searching: ask the backend for a driver-match preview.
+    // 1 = searching. Nobody is assigned yet — a partner is picked only once
+    // one accepts the trip, after payment. This checks there is somebody to
+    // ask at all, so a rider is told now rather than after paying.
     if (i == 1) {
-      _cubit.previewDriver().then((ok) {
-        if (mounted && ok) _goTo(2);
-      });
+      final lat = _pickup.lat, lng = _pickup.lng;
+      if (lat == null || lng == null) {
+        _goTo(2);
+      } else {
+        _cubit.checkAvailability(lat, lng).then((anyone) {
+          if (!mounted) return;
+          if (anyone) {
+            _goTo(2);
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(l10n.taxiNoDriversNearby)),
+            );
+            _goTo(0);
+          }
+        });
+      }
     }
     if (i == 2) _startEta(180, 45);
     // 5 = processing: create the real booking, then show confirmation.

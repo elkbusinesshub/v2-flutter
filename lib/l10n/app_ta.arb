@@ -285,6 +285,7 @@
   "chooseDropoffLocation": "இறங்கும் இடத்தைத் தேர்ந்தெடுக்கவும்",
   "fareBase": "அடிப்படைக் கட்டணம்",
   "fareBookingFee": "முன்பதிவுக் கட்டணம்",
+  "taxiNoDriversNearby": "தற்போது அருகில் ஓட்டுநர்கள் யாரும் இல்லை.",
   "assigningDriver": "ஓட்டுநர் நியமிக்கப்படுகிறார்…",
   "detailsOnTheWay": "விவரங்கள் வருகின்றன",
   "couldNotBookRide": "பயணத்தை முன்பதிவு செய்ய முடியவில்லை.",

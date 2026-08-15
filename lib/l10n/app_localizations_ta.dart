@@ -874,6 +874,9 @@ class AppLocalizationsTa extends AppLocalizations {
   String get fareBookingFee => 'முன்பதிவுக் கட்டணம்';
 
   @override
+  String get taxiNoDriversNearby => 'தற்போது அருகில் ஓட்டுநர்கள் யாரும் இல்லை.';
+
+  @override
   String get assigningDriver => 'ஓட்டுநர் நியமிக்கப்படுகிறார்…';
 
   @override

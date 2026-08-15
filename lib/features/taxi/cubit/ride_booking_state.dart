@@ -12,7 +12,6 @@ class RideBookingState extends Equatable {
     this.selectedRideTypeId,
     this.paymentMethod = 'card',
     this.isSearching = false,
-    this.driverMatch,
     this.isSubmitting = false,
     this.booking,
     this.isCancelled = false,
@@ -33,9 +32,6 @@ class RideBookingState extends Equatable {
 
   final bool isSearching;
 
-  /// Preview shown while searching; superseded by [booking]'s real driver.
-  final DriverMatchModel? driverMatch;
-
   final bool isSubmitting;
   final RideBookingModel? booking;
   final bool isCancelled;
@@ -44,10 +40,11 @@ class RideBookingState extends Equatable {
   RideTypeModel? get selectedRideType =>
       rideTypes.where((t) => t.id == selectedRideTypeId).firstOrNull;
 
-  /// The driver to display: the booked one once it exists, else the preview.
-  String? get driverName => booking?.driverName ?? driverMatch?.driverName;
-  String? get vehicle => booking?.vehicle ?? driverMatch?.vehicle;
-  String? get plateNumber => booking?.plateNumber ?? driverMatch?.plateNumber;
+  /// Who is driving — null until a partner has actually accepted the trip.
+  /// The screens fall back to "assigning driver", which is the truth.
+  String? get driverName => booking?.driverName;
+  String? get vehicle => booking?.vehicle;
+  String? get plateNumber => booking?.plateNumber;
 
   RideBookingState copyWith({
     RideOptionsStatus? optionsStatus,
@@ -58,7 +55,6 @@ class RideBookingState extends Equatable {
     String? selectedRideTypeId,
     String? paymentMethod,
     bool? isSearching,
-    DriverMatchModel? driverMatch,
     bool? isSubmitting,
     RideBookingModel? booking,
     bool? isCancelled,
@@ -73,7 +69,6 @@ class RideBookingState extends Equatable {
       selectedRideTypeId: selectedRideTypeId ?? this.selectedRideTypeId,
       paymentMethod: paymentMethod ?? this.paymentMethod,
       isSearching: isSearching ?? this.isSearching,
-      driverMatch: driverMatch ?? this.driverMatch,
       isSubmitting: isSubmitting ?? this.isSubmitting,
       booking: booking ?? this.booking,
       isCancelled: isCancelled ?? this.isCancelled,
@@ -91,7 +86,6 @@ class RideBookingState extends Equatable {
         selectedRideTypeId,
         paymentMethod,
         isSearching,
-        driverMatch,
         isSubmitting,
         booking,
         isCancelled,
